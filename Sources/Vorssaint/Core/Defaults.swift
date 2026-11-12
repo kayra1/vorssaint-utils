@@ -784,6 +784,14 @@ enum DefaultsKey {
     static let panelUtilityScreenRecorder = "panelUtilityScreenRecorder"
     static let panelUtilityPortManager = "panelUtilityPortManager"
 
+    // Menu Bar Manager — hides, groups and rearranges other apps' menu bar icons.
+    static let menuBarManagerEnabled = "menuBarManagerEnabled"
+    static let menuBarManagerShowOnHover = "menuBarManagerShowOnHover"
+    static let menuBarManagerRehideSeconds = "menuBarManagerRehideSeconds" // 0 keeps the hidden section open
+    static let menuBarManagerAlwaysHidden = "menuBarManagerAlwaysHidden" // second divider
+    static let menuBarManagerClickOpensCategories = "menuBarManagerClickOpensCategories"
+    static let menuBarManagerCategories = "menuBarManagerCategories" // JSON, see MenuBarCategoryLayout
+
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
     static let windowDirectionalEnabled = "windowDirectionalEnabled"
@@ -1928,6 +1936,12 @@ enum Defaults {
         DefaultsKey.recorderSharingEnabled: true,
         DefaultsKey.panelUtilityScreenRecorder: true,
         DefaultsKey.panelUtilityPortManager: true,
+        DefaultsKey.menuBarManagerEnabled: false,
+        DefaultsKey.menuBarManagerShowOnHover: false,
+        DefaultsKey.menuBarManagerRehideSeconds: 10,
+        DefaultsKey.menuBarManagerAlwaysHidden: false,
+        DefaultsKey.menuBarManagerClickOpensCategories: false,
+        DefaultsKey.menuBarManagerCategories: "",
         DefaultsKey.screenshotShowCaptureMenuOnShortcut: true,
         DefaultsKey.recorderShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenOCRShowCaptureMenuOnShortcut: true,

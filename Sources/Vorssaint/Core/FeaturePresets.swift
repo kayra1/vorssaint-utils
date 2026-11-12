@@ -155,6 +155,9 @@ extension AppFeature {
              .cameraPreview, .scratchpad, .commandBar, .screenRecorder, .wallpaper, .fanControl,
              .diskImageInstaller, .killProcess, .portManager:
             return .idle
+        case .menuBarManager:
+            // Only showing on hover watches the pointer; the arrow costs nothing at rest.
+            return UserDefaults.standard.bool(forKey: DefaultsKey.menuBarManagerShowOnHover) ? .mouse : .idle
         case .appUpdates:
             // The list is on demand; only a background schedule keeps a timer.
             return AppUpdatesSupport.CheckFrequency.sanitized(
