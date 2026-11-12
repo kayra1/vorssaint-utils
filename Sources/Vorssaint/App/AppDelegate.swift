@@ -2059,6 +2059,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         UserDefaults.standard.set(false, forKey: DefaultsKey.notchHidesMenuBarIcon)
         guard !isReshowingStatusItem else { return }
         isReshowingStatusItem = true
+        // An icon sitting in the manager's own hidden section comes back by
+        // showing that section, which a rebuild alone would not do.
+        MenuBarManagerState.reveal?()
         statusController?.recreateStatusItem()
         verifyIconReappeared(attemptsLeft: Self.reshowVerifyAttempts)
     }
@@ -2163,6 +2166,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     ]
 
     private static func runningMenuBarManagerName() -> String? {
+        // Vorssaint's own manager can be the one keeping the icon off screen.
+        if MenuBarManagerState.isHidingItems {
+            return NSRunningApplication.current.localizedName ?? "Vorssaint"
+        }
         for app in NSWorkspace.shared.runningApplications {
             guard let bundleID = app.bundleIdentifier else { continue }
             if menuBarManagerBundlePrefixes.contains(where: { bundleID.hasPrefix($0) }) {
