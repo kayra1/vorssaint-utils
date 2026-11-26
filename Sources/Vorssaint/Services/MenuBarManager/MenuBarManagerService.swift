@@ -4,95 +4,104 @@
 import AppKit
 import ApplicationServices
 import SwiftUI
+import os
 
-/// One menu bar icon as the layout editor and the categories panel show it.
+/// One menu bar icon as the Settings page and the categories panel show it.
 struct MenuBarManagedItem: Identifiable {
     let id: String
-    let pid: pid_t
+    let bundleID: String
     let appName: String
     let title: String
     /// Set for the system's own icons, which share one generic app icon.
     let symbolName: String?
-    /// Global display coordinates, origin at the top left.
-    let frame: CGRect
-    let section: MenuBarSection
-    let element: AXUIElement
+    /// Whether it was on the bar at the last look, rather than remembered.
+    let isLive: Bool
 
-    var appIcon: NSImage? { NSRunningApplication(processIdentifier: pid)?.icon }
+    var appIcon: NSImage? {
+        NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first?.icon
+    }
 }
 
-/// Where the layout editor asks an icon to go.
-enum MenuBarMoveTarget: Equatable {
-    case section(MenuBarSection)
-    /// Immediately to the left of another icon.
-    case before(itemID: String)
+/// One application with menu bar icons, which is what macOS 27 hides.
+struct MenuBarManagedApp: Identifiable {
+    let bundleID: String
+    let name: String
+    let canHide: Bool
+    var id: String { bundleID }
 }
 
-/// Hides, groups and rearranges the menu bar's icons.
+/// Hides, groups and opens other apps' menu bar icons on macOS 27.
 ///
-/// Hiding uses two status items of its own: an arrow, and a divider that can
-/// stretch far wider than the screen. Stretched, the divider pushes every
-/// icon on its left off the screen; shrunk, they come back. An optional
-/// second divider further left does the same for icons that stay away even
-/// while the first section shows. Nothing is done to the other apps: quitting
-/// or switching the feature off removes the dividers and every icon returns.
-///
-/// Listing, pressing and moving other apps' icons goes through Accessibility
-/// and only happens when the editor or the categories panel asks for it.
+/// Hiding turns off the apps' "Allow in the Menu Bar" switch through
+/// `MenuBarAllowList`, so it is per app: each app is visible, hidden (back
+/// while the arrow is open) or always hidden (back only on Option-click).
+/// The arrow is this app's own menu bar item and is never hidden. Quitting or
+/// switching the feature off turns every switch it turned off back on.
 /// Main thread only.
 final class MenuBarManagerService: NSObject, ObservableObject {
     static let shared = MenuBarManagerService()
 
     @Published private(set) var isRunning = false
-    /// True while the hidden section is on screen.
-    @Published private(set) var isShowingHidden = true
-    /// The divider sits right of the arrow, so stretching it would take the
-    /// arrow away too and nothing can be hidden.
-    @Published private(set) var dividerMisplaced = false
+    @Published private(set) var revealState = MenuBarRevealState.allHidden
+    @Published private(set) var applyFailed = false
     @Published private(set) var items: [MenuBarManagedItem] = []
     @Published private(set) var isScanning = false
-    @Published private(set) var isMoving = false
-    @Published private(set) var moveFailed = false
     @Published private(set) var layout = MenuBarCategoryLayout()
 
-    private enum RehideMode {
-        case everything, alwaysHiddenOnly
-    }
-
-    private enum ControlPlacement {
-        case unknown, valid, misplaced
-    }
+    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
+                                    category: "menubar-manager")
 
     private var toggleItem: NSStatusItem?
-    private var dividerItem: NSStatusItem?
-    private var alwaysHiddenItem: NSStatusItem?
-    private var alwaysHiddenRevealed = false
     private var shownByHover = false
-    private var temporaryReveal = false
-    private var temporaryHold: TimeInterval = 6
     private var rehideWork: DispatchWorkItem?
-    private var rehideMode = RehideMode.everything
     private var hoverWork: DispatchWorkItem?
-    private var hideRetriesLeft = 0
+    private var retryWork: DispatchWorkItem?
+    private var retriesLeft = 0
     private var globalMonitor: Any?
     private var localMonitor: Any?
     private var pointerWasInBand = false
+    private var runningObservation: NSKeyValueObservation?
     private var popover: NSPopover?
+    /// Apps shown for a moment to open one of their icons, with a count per caller.
+    private var temporarilyShown: [String: Int] = [:]
+    private var remembered: [String: [MenuBarRememberedItem]] = [:]
+    private var liveEntries: [String: MenuBarItemScanner.Entry] = [:]
     private let scanQueue = DispatchQueue(label: "com.vorssaint.menu-bar-manager.scan", qos: .userInitiated)
 
     private var defaults: UserDefaults { .standard }
+    private var ownBundleID: String? { Bundle.main.bundleIdentifier }
+
+    /// Whether this Mac can run the feature at all.
+    static var isSupported: Bool { MenuBarAllowList.isAvailable }
 
     private override init() {
         super.init()
+        remembered = MenuBarManagerSupport.decodeRemembered(
+            defaults.string(forKey: DefaultsKey.menuBarManagerRememberedItems) ?? "")
     }
 
     // MARK: Lifecycle
+
+    /// At launch, before any feature starts: switches a crash or a removed
+    /// feature left off go back on, unless the manager is about to own them.
+    static func recoverIfNeeded() {
+        guard MenuBarAllowList.hasRecord else { return }
+        let keeps = AppFeature.menuBarManager.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.menuBarManagerEnabled)
+            && isSupported
+        if !keeps { MenuBarAllowList.releaseAll() }
+    }
+
+    /// On quit: every icon comes back.
+    static func releaseOnQuit() {
+        MenuBarAllowList.releaseAll()
+    }
 
     func syncWithPreferences() {
         let stored = MenuBarManagerSupport.decodeLayout(
             defaults.string(forKey: DefaultsKey.menuBarManagerCategories) ?? "")
         if stored != layout { layout = stored }
-        guard AppFeature.menuBarManager.isAvailable,
+        guard AppFeature.menuBarManager.isAvailable, Self.isSupported,
               defaults.bool(forKey: DefaultsKey.menuBarManagerEnabled) else {
             stop()
             return
@@ -101,75 +110,156 @@ final class MenuBarManagerService: NSObject, ObservableObject {
     }
 
     private func start() {
-        let firstStart = !isRunning
-        // Created right to left: each new status item lands on the far left,
-        // which leaves the divider left of the arrow with nothing hidden yet.
-        if toggleItem == nil { toggleItem = makeToggleItem() }
-        if dividerItem == nil {
-            dividerItem = makeDivider(autosaveName: MenuBarManagerSupport.dividerAutosaveName, dimmed: false)
-        }
-        let wantsAlwaysHidden = defaults.bool(forKey: DefaultsKey.menuBarManagerAlwaysHidden)
-        if wantsAlwaysHidden, alwaysHiddenItem == nil {
-            alwaysHiddenItem = makeDivider(autosaveName: MenuBarManagerSupport.alwaysHiddenAutosaveName,
-                                           dimmed: true)
-        } else if !wantsAlwaysHidden, let item = alwaysHiddenItem {
-            NSStatusBar.system.removeStatusItem(item)
-            alwaysHiddenItem = nil
-            alwaysHiddenRevealed = false
-        }
-        isRunning = true
-        MenuBarManagerState.reveal = { [weak self] in
-            // Long enough for the icon recovery to look for it several times.
-            self?.showHidden(temporarily: true, revealAlwaysHidden: true, holdingFor: 45)
+        if !isRunning {
+            isRunning = true
+            revealState = .allHidden
+            toggleItem = makeToggleItem()
+            runningObservation = NSWorkspace.shared.observe(\.runningApplications, options: [.new]) { [weak self] _, _ in
+                DispatchQueue.main.async { self?.runningAppsChanged() }
+            }
+            // Read the bar while everything is still on it, so hidden apps
+            // keep known icons, then hide.
+            refreshItems { [weak self] in self?.apply() }
+        } else {
+            apply()
         }
         syncHoverMonitor()
-        applyLengths()
-        guard firstStart else { return }
-        // macOS restores the saved positions a moment after the items exist,
-        // and only settled frames say whether hiding is safe.
-        hideRetriesLeft = 10
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            guard let self, self.isRunning, self.isShowingHidden, !self.isMoving else { return }
-            self.hideHidden()
-        }
+        updateToggleAppearance()
     }
 
     private func stop() {
-        guard isRunning || toggleItem != nil else { return }
+        guard isRunning else { return }
+        isRunning = false
         cancelRehide()
         hoverWork?.cancel()
         hoverWork = nil
+        retryWork?.cancel()
+        retryWork = nil
+        runningObservation = nil
         popover?.performClose(nil)
         popover = nil
-        for item in [toggleItem, dividerItem, alwaysHiddenItem].compactMap({ $0 }) {
-            NSStatusBar.system.removeStatusItem(item)
-        }
+        temporarilyShown = [:]
+        if let toggleItem { NSStatusBar.system.removeStatusItem(toggleItem) }
         toggleItem = nil
-        dividerItem = nil
-        alwaysHiddenItem = nil
-        isRunning = false
-        isShowingHidden = true
-        dividerMisplaced = false
-        alwaysHiddenRevealed = false
-        shownByHover = false
-        temporaryReveal = false
-        MenuBarManagerState.isHidingItems = false
-        MenuBarManagerState.reveal = nil
         syncHoverMonitor()
+        MenuBarAllowList.releaseAll()
+        revealState = .allHidden
+        applyFailed = false
     }
 
-    /// Forgets where the arrow and the dividers were and puts them back at
-    /// the far left in working order. Every icon ends up visible.
-    func resetPositions() {
+    private func runningAppsChanged() {
         guard isRunning else { return }
-        stop()
-        for name in MenuBarManagerSupport.controlAutosaveNames {
-            defaults.removeObject(forKey: StatusItemPlacementSupport.preferredPositionKey(for: name))
-        }
-        syncWithPreferences()
+        apply()
     }
 
-    // MARK: Status items
+    // MARK: Hiding
+
+    /// Brings the switches in line with the layout, the reveal state and any
+    /// app shown for a moment.
+    private func apply() {
+        guard isRunning else { return }
+        let concealed = MenuBarManagerSupport.concealed(
+            layout: layout, state: revealState,
+            temporarilyShown: Set(temporarilyShown.keys), ownBundleID: ownBundleID)
+        do {
+            let untracked = try MenuBarAllowList.apply(concealed: concealed)
+            applyFailed = false
+            // An app that never drew an icon has no switch yet. Running apps
+            // are watched anyway; this covers one that draws its icon later.
+            let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+            if untracked.isDisjoint(with: running) {
+                retriesLeft = 0
+            } else {
+                scheduleRetry()
+            }
+        } catch {
+            applyFailed = true
+            Self.log.error("could not apply: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    private func scheduleRetry() {
+        if retriesLeft == 0 { retriesLeft = 6 }
+        retriesLeft -= 1
+        guard retriesLeft > 0 else { return }
+        retryWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.apply() }
+        retryWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: work)
+    }
+
+    private func setRevealState(_ state: MenuBarRevealState) {
+        guard isRunning else { return }
+        if state != revealState { revealState = state }
+        apply()
+        updateToggleAppearance()
+    }
+
+    var isShowingHidden: Bool { revealState != .allHidden }
+
+    func toggleHidden() {
+        if isShowingHidden { hideHidden() } else { showHidden() }
+    }
+
+    func showHidden(byHover: Bool = false, includingAlwaysHidden: Bool = false) {
+        guard isRunning else { return }
+        cancelRehide()
+        if revealState == .allHidden { shownByHover = byHover } else if !byHover { shownByHover = false }
+        let target: MenuBarRevealState = includingAlwaysHidden || revealState == .allRevealed
+            ? .allRevealed : .hiddenRevealed
+        setRevealState(target)
+        scheduleAutomaticRehide()
+    }
+
+    func hideHidden() {
+        guard isRunning else { return }
+        cancelRehide()
+        shownByHover = false
+        setRevealState(.allHidden)
+    }
+
+    private func scheduleAutomaticRehide() {
+        if shownByHover {
+            if !pointerIsInBand() { scheduleRehide(after: 0.8) }
+            return
+        }
+        let seconds = MenuBarManagerSupport.sanitizedRehideSeconds(
+            defaults.integer(forKey: DefaultsKey.menuBarManagerRehideSeconds))
+        if seconds > 0 { scheduleRehide(after: TimeInterval(seconds)) }
+    }
+
+    private func scheduleRehide(after delay: TimeInterval) {
+        rehideWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.rehideIfIdle() }
+        rehideWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func cancelRehide() {
+        rehideWork?.cancel()
+        rehideWork = nil
+    }
+
+    /// Hiding under the pointer or under an open menu would pull an icon
+    /// away from what the person is doing with it.
+    private func rehideIfIdle() {
+        guard isRunning, isShowingHidden else { return }
+        if NSEvent.pressedMouseButtons != 0 || pointerIsInBand()
+            || popover?.isShown == true || Self.menuIsOpen() {
+            scheduleRehide(after: 1)
+            return
+        }
+        hideHidden()
+    }
+
+    private static func menuIsOpen() -> Bool {
+        let menuLevel = Int(CGWindowLevelForKey(.popUpMenuWindow))
+        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                                       kCGNullWindowID) as? [[String: Any]] else { return false }
+        return windows.contains { ($0[kCGWindowLayer as String] as? Int) == menuLevel }
+    }
+
+    // MARK: The arrow
 
     private func makeToggleItem() -> NSStatusItem {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -179,79 +269,8 @@ final class MenuBarManagerService: NSObject, ObservableObject {
             button.target = self
             button.action = #selector(toggleClicked(_:))
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            button.setAccessibilityIdentifier(MenuBarManagerSupport.toggleAutosaveName)
         }
         return item
-    }
-
-    private func makeDivider(autosaveName: String, dimmed: Bool) -> NSStatusItem {
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.autosaveName = autosaveName
-        item.isVisible = true
-        if let button = item.button {
-            button.image = Self.dividerImage
-            button.appearsDisabled = dimmed
-            button.setAccessibilityIdentifier(autosaveName)
-            // A stretched divider covers the bar's empty space; a click there
-            // must not light it up.
-            (button.cell as? NSButtonCell)?.highlightsBy = []
-        }
-        return item
-    }
-
-    private static let dividerImage: NSImage = {
-        let image = NSImage(size: NSSize(width: 7, height: 16), flipped: false) { _ in
-            NSColor.black.setFill()
-            NSBezierPath(roundedRect: NSRect(x: 2.75, y: 3, width: 1.5, height: 10),
-                         xRadius: 0.75, yRadius: 0.75).fill()
-            return true
-        }
-        image.isTemplate = true
-        return image
-    }()
-
-    private func frame(of item: NSStatusItem?) -> CGRect? {
-        guard let frame = item?.button?.window?.frame, frame.width > 0 else { return nil }
-        return frame
-    }
-
-    private func controlPlacement() -> ControlPlacement {
-        guard let toggle = frame(of: toggleItem), let divider = frame(of: dividerItem),
-              StatusItemPlacementSupport.isPlacedStatusFrame(
-                toggle, screenFrames: NSScreen.screens.map(\.frame)) else { return .unknown }
-        return MenuBarManagerSupport.dividerIsLeftOfToggle(toggleMinX: toggle.minX, dividerMaxX: divider.maxX)
-            ? .valid : .misplaced
-    }
-
-    /// The second divider only takes part from the left of the first.
-    private var alwaysHiddenUsable: Bool {
-        guard let always = frame(of: alwaysHiddenItem), let divider = frame(of: dividerItem) else { return false }
-        return MenuBarManagerSupport.alwaysHiddenIsLeftOfDivider(alwaysHiddenMaxX: always.maxX,
-                                                                 dividerMinX: divider.minX)
-    }
-
-    private func applyLengths() {
-        let standard = NSStatusItem.variableLength
-        let stretched = MenuBarManagerSupport.expandedLength
-        var holdsAlwaysHidden = false
-        if isShowingHidden {
-            // The second divider stretches before the first lets go, so its
-            // icons never flash by on the way.
-            if let always = alwaysHiddenItem {
-                holdsAlwaysHidden = alwaysHiddenUsable && !alwaysHiddenRevealed
-                always.length = holdsAlwaysHidden ? stretched : standard
-                always.button?.image = holdsAlwaysHidden ? nil : Self.dividerImage
-            }
-            dividerItem?.length = standard
-            dividerItem?.button?.image = Self.dividerImage
-        } else {
-            dividerItem?.length = stretched
-            dividerItem?.button?.image = nil
-            alwaysHiddenItem?.length = standard
-            alwaysHiddenItem?.button?.image = Self.dividerImage
-        }
-        MenuBarManagerState.isHidingItems = isRunning && (!isShowingHidden || holdsAlwaysHidden)
-        updateToggleAppearance()
     }
 
     private func updateToggleAppearance() {
@@ -263,11 +282,7 @@ final class MenuBarManagerService: NSObject, ObservableObject {
         image?.isTemplate = true
         button.image = image
         button.toolTip = title
-        dividerItem?.button?.toolTip = strings.dividerTooltip
-        alwaysHiddenItem?.button?.toolTip = strings.alwaysHiddenLabel
     }
-
-    // MARK: Showing and hiding
 
     @objc private func toggleClicked(_ sender: Any?) {
         let event = NSApp.currentEvent
@@ -276,116 +291,10 @@ final class MenuBarManagerService: NSObject, ObservableObject {
         if secondary != opensCategories {
             toggleCategoriesPanel()
         } else if event?.modifierFlags.contains(.option) == true {
-            showHidden(revealAlwaysHidden: true)
+            if revealState == .allRevealed { hideHidden() } else { showHidden(includingAlwaysHidden: true) }
         } else {
             toggleHidden()
         }
-    }
-
-    func toggleHidden() {
-        if isShowingHidden {
-            hideHidden()
-            if dividerMisplaced { NSSound.beep() }
-        } else {
-            showHidden()
-        }
-    }
-
-    func showHidden(byHover: Bool = false, temporarily: Bool = false, revealAlwaysHidden: Bool = false,
-                    holdingFor hold: TimeInterval = 6) {
-        guard isRunning else { return }
-        cancelRehide()
-        temporaryHold = hold
-        if revealAlwaysHidden, alwaysHiddenItem != nil { alwaysHiddenRevealed = true }
-        if !isShowingHidden {
-            shownByHover = byHover
-            temporaryReveal = temporarily
-            isShowingHidden = true
-        } else if !byHover, !temporarily {
-            // An explicit request keeps open what a hover or a press opened.
-            shownByHover = false
-            temporaryReveal = false
-        }
-        applyLengths()
-        scheduleAutomaticRehide()
-    }
-
-    func hideHidden() {
-        guard isRunning else { return }
-        cancelRehide()
-        switch controlPlacement() {
-        case .unknown:
-            // No settled frame yet; ask again rather than hide blind.
-            guard hideRetriesLeft > 0 else { return }
-            hideRetriesLeft -= 1
-            scheduleRehide(after: 1, mode: .everything)
-            return
-        case .misplaced:
-            dividerMisplaced = true
-            if !isShowingHidden { isShowingHidden = true }
-            applyLengths()
-            return
-        case .valid:
-            dividerMisplaced = false
-            hideRetriesLeft = 10
-        }
-        alwaysHiddenRevealed = false
-        shownByHover = false
-        temporaryReveal = false
-        isShowingHidden = false
-        applyLengths()
-    }
-
-    private func scheduleAutomaticRehide() {
-        let seconds = MenuBarManagerSupport.sanitizedRehideSeconds(
-            defaults.integer(forKey: DefaultsKey.menuBarManagerRehideSeconds))
-        if temporaryReveal {
-            scheduleRehide(after: temporaryHold, mode: .everything)
-        } else if shownByHover {
-            if !pointerIsInBand() { scheduleRehide(after: 0.8, mode: .everything) }
-        } else if seconds > 0 {
-            scheduleRehide(after: TimeInterval(seconds), mode: .everything)
-        } else if alwaysHiddenRevealed {
-            scheduleRehide(after: temporaryHold, mode: .alwaysHiddenOnly)
-        }
-    }
-
-    private func scheduleRehide(after delay: TimeInterval, mode: RehideMode) {
-        rehideWork?.cancel()
-        rehideMode = mode
-        let work = DispatchWorkItem { [weak self] in self?.rehideIfIdle() }
-        rehideWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
-    }
-
-    private func cancelRehide() {
-        rehideWork?.cancel()
-        rehideWork = nil
-    }
-
-    /// Hiding under the pointer, under an open menu or in the middle of a
-    /// drag would pull an icon away from what the person is doing with it.
-    private func rehideIfIdle() {
-        guard isRunning, !isMoving else { return }
-        if NSEvent.pressedMouseButtons != 0 || pointerIsInBand()
-            || popover?.isShown == true || Self.menuIsOpen() {
-            scheduleRehide(after: 1, mode: rehideMode)
-            return
-        }
-        switch rehideMode {
-        case .everything:
-            hideHidden()
-        case .alwaysHiddenOnly:
-            alwaysHiddenRevealed = false
-            applyLengths()
-        }
-    }
-
-    private static func menuIsOpen() -> Bool {
-        let menuLevel = Int(CGWindowLevelForKey(.popUpMenuWindow))
-        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
-                                                       kCGNullWindowID) as? [[String: Any]] else { return false }
-        return windows.contains { ($0[kCGWindowLayer as String] as? Int) == menuLevel }
     }
 
     // MARK: Hover
@@ -406,15 +315,18 @@ final class MenuBarManagerService: NSObject, ObservableObject {
             globalMonitor = nil
             localMonitor = nil
             pointerWasInBand = false
+            hoverWork?.cancel()
+            hoverWork = nil
         }
     }
 
     private func pointerIsInBand() -> Bool {
-        guard let screen = toggleItem?.button?.window?.screen ?? NSScreen.screens.first else { return false }
+        let point = NSEvent.mouseLocation
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(point) })
+                ?? toggleItem?.button?.window?.screen else { return false }
         let gap = screen.frame.maxY - screen.visibleFrame.maxY
         let height = gap > 0 ? gap : NSStatusBar.system.thickness
-        return MenuBarManagerSupport.isInStatusBand(point: NSEvent.mouseLocation,
-                                                    screenFrame: screen.frame, barHeight: height)
+        return MenuBarManagerSupport.isInStatusBand(point: point, screenFrame: screen.frame, barHeight: height)
     }
 
     private func pointerMoved() {
@@ -424,29 +336,139 @@ final class MenuBarManagerService: NSObject, ObservableObject {
         hoverWork?.cancel()
         hoverWork = nil
         if inBand {
-            guard !isShowingHidden, !isMoving else { return }
+            guard !isShowingHidden else { return }
             let work = DispatchWorkItem { [weak self] in
-                guard let self, self.isRunning, !self.isShowingHidden, !self.isMoving,
-                      self.pointerIsInBand() else { return }
+                guard let self, self.isRunning, !self.isShowingHidden, self.pointerIsInBand() else { return }
                 self.showHidden(byHover: true)
             }
             hoverWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
         } else if isShowingHidden, shownByHover {
-            scheduleRehide(after: 0.8, mode: .everything)
+            scheduleRehide(after: 0.8)
         }
     }
 
-    // MARK: Categories
+    // MARK: Layout
 
     func updateLayout(_ change: (inout MenuBarCategoryLayout) -> Void) {
         var next = layout
         change(&next)
         next = MenuBarManagerSupport.sanitized(next)
         guard next != layout else { return }
+        let sectionsChanged = next.sections != layout.sections
         layout = next
         defaults.set(MenuBarManagerSupport.encodeLayout(next), forKey: DefaultsKey.menuBarManagerCategories)
+        if sectionsChanged { apply() }
     }
+
+    func setSection(_ section: MenuBarSection, for bundleID: String) {
+        guard MenuBarManagerSupport.canHide(bundleID: bundleID, ownBundleID: ownBundleID) else { return }
+        updateLayout { $0.setSection(section, for: bundleID) }
+    }
+
+    /// Every app with menu bar icons, whether its icons are on the bar now or
+    /// remembered from when they were.
+    var apps: [MenuBarManagedApp] {
+        var seen = Set<String>()
+        var result: [MenuBarManagedApp] = []
+        for item in items where seen.insert(item.bundleID).inserted {
+            result.append(MenuBarManagedApp(
+                bundleID: item.bundleID, name: item.appName,
+                canHide: MenuBarManagerSupport.canHide(bundleID: item.bundleID, ownBundleID: ownBundleID)))
+        }
+        return result
+    }
+
+    // MARK: Listing
+
+    /// Reads the bar again. Apps that are hidden publish nothing, so their
+    /// icons come from what was seen while they showed.
+    func refreshItems(then completion: (() -> Void)? = nil) {
+        guard AXIsProcessTrusted() else {
+            items = rememberedOnly()
+            completion?()
+            return
+        }
+        isScanning = true
+        let apps = MenuBarItemScanner.runningApps()
+        scanQueue.async { [weak self] in
+            let entries = MenuBarItemScanner.scan(apps)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.absorb(entries)
+                self.isScanning = false
+                completion?()
+            }
+        }
+    }
+
+    private func rememberedOnly() -> [MenuBarManagedItem] {
+        remembered.keys.sorted().flatMap { bundleID in
+            (remembered[bundleID] ?? []).map { record in
+                MenuBarManagedItem(id: record.key, bundleID: bundleID, appName: record.appName,
+                                   title: record.title, symbolName: nil, isLive: false)
+            }
+        }
+    }
+
+    private func absorb(_ entries: [MenuBarItemScanner.Entry]) {
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        var live: [String: MenuBarItemScanner.Entry] = [:]
+        var liveItems: [MenuBarManagedItem] = []
+        var seenNow: [String: [MenuBarRememberedItem]] = [:]
+        for entry in entries where entry.app.pid != ownPID {
+            guard let bundleID = entry.app.bundleID, !bundleID.isEmpty else { continue }
+            // A frame on no display is a stale one left by Accessibility.
+            guard entry.frame.width > 4, Self.isOnSomeDisplay(entry.frame) else { continue }
+            let key = MenuBarManagerSupport.itemKey(bundleID: bundleID, appName: entry.app.name,
+                                                    identifier: entry.identifier, index: entry.index)
+            guard live[key] == nil else { continue }
+            let title = MenuBarManagerSupport.displayTitle(title: entry.title, description: entry.description,
+                                                           appName: entry.app.name)
+            live[key] = entry
+            liveItems.append(MenuBarManagedItem(
+                id: key, bundleID: bundleID, appName: entry.app.name, title: title,
+                symbolName: bundleID == MenuBarManagerSupport.menuBarAgentBundleID
+                    ? MenuBarManagerSupport.systemSymbol(forIdentifier: entry.identifier) : nil,
+                isLive: true))
+            if MenuBarManagerSupport.canHide(bundleID: bundleID, ownBundleID: ownBundleID) {
+                seenNow[bundleID, default: []].append(MenuBarRememberedItem(
+                    key: key, title: title, appName: entry.app.name, identifier: entry.identifier))
+            }
+        }
+        liveEntries = live
+        var nextRemembered = remembered
+        for (bundleID, records) in seenNow {
+            nextRemembered[bundleID] = Array(records.prefix(MenuBarManagerSupport.maxRememberedPerApp))
+        }
+        if nextRemembered != remembered {
+            remembered = nextRemembered
+            defaults.set(MenuBarManagerSupport.encodeRemembered(nextRemembered),
+                         forKey: DefaultsKey.menuBarManagerRememberedItems)
+        }
+        // Hidden apps keep their place in the list through what was remembered.
+        let liveApps = Set(liveItems.map(\.bundleID))
+        let hiddenApps = remembered.keys.filter { !liveApps.contains($0) && layout.section(for: $0) != .visible }
+        let fromMemory = hiddenApps.sorted().flatMap { bundleID in
+            (remembered[bundleID] ?? []).map { record in
+                MenuBarManagedItem(id: record.key, bundleID: bundleID, appName: record.appName,
+                                   title: record.title, symbolName: nil, isLive: false)
+            }
+        }
+        items = liveItems + fromMemory
+    }
+
+    private static func isOnSomeDisplay(_ frame: CGRect) -> Bool {
+        var capacity: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &capacity) == .success, capacity > 0 else { return false }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(capacity))
+        var found: UInt32 = 0
+        guard CGGetActiveDisplayList(capacity, &displays, &found) == .success else { return false }
+        let center = CGPoint(x: frame.midX, y: frame.midY)
+        return displays.prefix(Int(found)).contains { CGDisplayBounds($0).contains(center) }
+    }
+
+    // MARK: Categories panel
 
     private func toggleCategoriesPanel() {
         if let popover, popover.isShown {
@@ -467,199 +489,86 @@ final class MenuBarManagerService: NSObject, ObservableObject {
         popover?.performClose(nil)
     }
 
-    /// Opens an icon as a click on it would, bringing it on screen first.
+    // MARK: Opening an icon
+
+    /// Opens an icon as a click on it would. A hidden app is shown for as
+    /// long as the menu it opened stays up.
     func activate(_ item: MenuBarManagedItem) {
         closeCategoriesPanel()
-        let offScreen: Bool
-        switch item.section {
-        case .visible: offScreen = false
-        case .hidden: offScreen = !isShowingHidden
-        case .alwaysHidden: offScreen = !isShowingHidden || !alwaysHiddenRevealed
-        }
-        if offScreen {
-            showHidden(temporarily: true, revealAlwaysHidden: item.section == .alwaysHidden)
-        }
-        // The bar needs a moment to bring the icon back, and the panel to close.
-        let element = item.element
-        DispatchQueue.main.asyncAfter(deadline: .now() + (offScreen ? 0.4 : 0.15)) {
-            DispatchQueue.global(qos: .userInitiated).async {
-                AXUIElementSetMessagingTimeout(element, 0.6)
-                let result = AXUIElementPerformAction(element, kAXPressAction as CFString)
-                // An app tracking the menu it just opened does not answer in
-                // time, so only an icon that cannot be pressed gets a click.
-                guard result == .actionUnsupported || result == .notImplemented,
-                      let frame = MenuBarItemScanner.frame(of: element) else { return }
-                MenuBarPointerDriver.click(at: CGPoint(x: frame.midX, y: frame.midY))
-            }
-        }
-    }
-
-    // MARK: Listing
-
-    /// Reads the menu bar's icons again. Without Accessibility the list is
-    /// empty and the editor asks for the grant instead.
-    func refreshItems(then completion: (() -> Void)? = nil) {
-        guard AXIsProcessTrusted() else {
-            items = []
-            completion?()
+        guard isRunning,
+              let app = NSRunningApplication.runningApplications(withBundleIdentifier: item.bundleID).first
+        else {
+            NSSound.beep()
             return
         }
-        isScanning = true
-        let apps = MenuBarItemScanner.runningApps()
-        scanQueue.async { [weak self] in
-            let entries = MenuBarItemScanner.scan(apps)
-            DispatchQueue.main.async {
-                guard let self else { return }
-                self.items = self.makeItems(from: entries)
-                self.isScanning = false
-                completion?()
+        let concealed = MenuBarManagerSupport.concealed(
+            layout: layout, state: revealState,
+            temporarilyShown: Set(temporarilyShown.keys), ownBundleID: ownBundleID)
+        let wasHidden = concealed.contains(item.bundleID) || !item.isLive
+        if wasHidden {
+            temporarilyShown[item.bundleID, default: 0] += 1
+            apply()
+        }
+        let scanApp = MenuBarItemScanner.App(pid: app.processIdentifier, bundleID: item.bundleID,
+                                             name: app.localizedName ?? item.appName)
+        let key = item.id
+        let pid = app.processIdentifier
+        let fallback = liveEntries[key]?.element
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            // A shown icon is drawn 0.5 to 0.6 s after its app is allowed
+            // (measured by Ice on macOS 27.0); the popover needs a moment too.
+            usleep(wasHidden ? 450_000 : 150_000)
+            let deadline = Date().addingTimeInterval(wasHidden ? 2.5 : 0.5)
+            var target: MenuBarItemScanner.Entry?
+            repeat {
+                let entries = MenuBarItemScanner.readEntries(for: scanApp)
+                    .filter { $0.frame.width > 4 && Self.isOnSomeDisplay($0.frame) }
+                target = entries.first {
+                    MenuBarManagerSupport.itemKey(bundleID: scanApp.bundleID, appName: scanApp.name,
+                                                  identifier: $0.identifier, index: $0.index) == key
+                } ?? (key.hasSuffix("|#0") ? entries.first : nil)
+                if target == nil { usleep(120_000) }
+            } while target == nil && Date() < deadline
+            let baseline = Self.windowNumbers(ownedBy: pid)
+            var opened = false
+            if let target {
+                MenuBarPointerDriver.click(at: CGPoint(x: target.frame.midX, y: target.frame.midY))
+                opened = true
+            } else if let fallback {
+                // Not drawn anywhere, folded behind the system's overflow
+                // control for example: Accessibility can still press it.
+                let result = AXUIElementPerformAction(fallback, kAXPressAction as CFString)
+                opened = result == .success
             }
-        }
-    }
-
-    private func makeItems(from entries: [MenuBarItemScanner.Entry]) -> [MenuBarManagedItem] {
-        let ownPID = ProcessInfo.processInfo.processIdentifier
-        let controlFrames = [toggleItem, dividerItem, alwaysHiddenItem].compactMap { frame(of: $0) }
-        let dividerMinX = frame(of: dividerItem)?.minX
-        let alwaysHiddenMinX = alwaysHiddenUsable ? frame(of: alwaysHiddenItem)?.minX : nil
-        return entries.compactMap { entry -> MenuBarManagedItem? in
-            if entry.app.pid == ownPID {
-                // The arrow and the dividers are the manager, not its subject.
-                if let identifier = entry.identifier,
-                   MenuBarManagerSupport.controlAutosaveNames.contains(identifier) { return nil }
-                if controlFrames.contains(where: {
-                    abs($0.minX - entry.frame.minX) < 2 && abs($0.width - entry.frame.width) < 2
-                }) { return nil }
-            }
-            return MenuBarManagedItem(
-                id: MenuBarManagerSupport.itemKey(bundleID: entry.app.bundleID, appName: entry.app.name,
-                                                  identifier: entry.identifier, index: entry.index),
-                pid: entry.app.pid,
-                appName: entry.app.name,
-                title: MenuBarManagerSupport.displayTitle(title: entry.title, description: entry.description,
-                                                          appName: entry.app.name),
-                symbolName: MenuBarManagerSupport.systemSymbol(forIdentifier: entry.identifier),
-                frame: entry.frame,
-                section: MenuBarManagerSupport.section(midX: entry.frame.midX, dividerMinX: dividerMinX,
-                                                       alwaysHiddenMinX: alwaysHiddenMinX),
-                element: entry.element)
-        }
-    }
-
-    // MARK: Moving
-
-    /// Carries an icon to another section or beside another icon with the
-    /// same Command-drag a person would make. Every section is brought on
-    /// screen for the drag and put back afterwards.
-    func move(itemID: String, to target: MenuBarMoveTarget) {
-        guard isRunning, !isMoving, AXIsProcessTrusted() else { return }
-        isMoving = true
-        moveFailed = false
-        let wasShowing = isShowingHidden
-        let hadAlwaysHiddenRevealed = alwaysHiddenRevealed
-        cancelRehide()
-        alwaysHiddenRevealed = true
-        isShowingHidden = true
-        applyLengths()
-        let finish: (Bool) -> Void = { [weak self] succeeded in
-            guard let self else { return }
-            self.moveFailed = !succeeded
-            self.isMoving = false
-            guard self.isRunning else { return }
-            if wasShowing {
-                self.alwaysHiddenRevealed = hadAlwaysHiddenRevealed
-                self.applyLengths()
-                self.scheduleAutomaticRehide()
-            } else {
-                self.hideHidden()
-            }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
-            guard let self else { return }
-            self.refreshItems { [weak self] in
-                guard let self else { return }
-                self.performMove(itemID: itemID, target: target, finish: finish)
-            }
-        }
-    }
-
-    private func performMove(itemID: String, target: MenuBarMoveTarget, finish: @escaping (Bool) -> Void) {
-        guard isRunning, let item = items.first(where: { $0.id == itemID }),
-              let divider = frame(of: dividerItem) else {
-            finish(false)
-            return
-        }
-        let plan: MenuBarManagerSupport.MovePlan
-        switch target {
-        case .section(let section):
-            if item.section == section {
-                finish(true)
-                return
-            }
-            let always = alwaysHiddenUsable ? frame(of: alwaysHiddenItem) : nil
-            guard let sectionPlan = MenuBarManagerSupport.sectionMove(
-                from: item.section, to: section, divider: divider, alwaysHidden: always) else {
-                finish(false)
-                return
-            }
-            plan = sectionPlan
-        case .before(let otherID):
-            guard otherID != itemID, let other = items.first(where: { $0.id == otherID }) else {
-                finish(false)
-                return
-            }
-            plan = MenuBarManagerSupport.MovePlan(anchor: other.frame, placement: .before)
-        }
-        let dropX = MenuBarManagerSupport.dropCenterX(moving: item.frame, plan: plan)
-        let start = CGPoint(x: item.frame.midX, y: item.frame.midY)
-        // Both ends of the drag have to be somewhere a pointer can reach.
-        let reachable = NSScreen.screens.contains { screen in
-            screen.frame.minX <= min(start.x, dropX) && max(start.x, dropX) <= screen.frame.maxX
-        }
-        guard reachable else {
-            finish(false)
-            return
-        }
-        DispatchQueue.global(qos: .userInitiated).async {
-            MenuBarPointerDriver.commandDrag(from: start, toX: dropX)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
-                guard let self else { return }
-                self.refreshItems { [weak self] in
-                    guard let self else { return }
-                    finish(self.moveSucceeded(itemID: itemID, target: target))
+            if opened, wasHidden {
+                // Keep the app shown while the menu or panel it opened is up.
+                usleep(400_000)
+                var waited = 0
+                while waited < 240, !Self.windowNumbers(ownedBy: pid).subtracting(baseline).isEmpty {
+                    usleep(250_000)
+                    waited += 1
                 }
             }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if !opened { NSSound.beep() }
+                if wasHidden { self.endTemporaryShow(item.bundleID) }
+            }
         }
     }
 
-    private func moveSucceeded(itemID: String, target: MenuBarMoveTarget) -> Bool {
-        guard let item = items.first(where: { $0.id == itemID }) else { return false }
-        switch target {
-        case .section(let section):
-            return item.section == section
-        case .before(let otherID):
-            guard let other = items.first(where: { $0.id == otherID }) else { return false }
-            return item.frame.midX < other.frame.midX && item.section == other.section
-        }
-    }
-}
-
-/// The system-wide gap between menu bar icons. These are macOS's own hidden
-/// preferences, read by each app as it launches, so a change reaches an app
-/// the next time it opens.
-enum MenuBarItemSpacingPreference {
-    static func value(forKey key: String) -> Int? {
-        let value = CFPreferencesCopyValue(key as CFString, kCFPreferencesAnyApplication,
-                                           kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
-        return (value as? NSNumber)?.intValue
+    private func endTemporaryShow(_ bundleID: String) {
+        guard let count = temporarilyShown[bundleID] else { return }
+        temporarilyShown[bundleID] = count > 1 ? count - 1 : nil
+        apply()
     }
 
-    /// nil removes the preference and returns the spacing to macOS.
-    static func setValue(_ value: Int?, forKey key: String) {
-        let number: CFPropertyList? = MenuBarManagerSupport.sanitizedSpacing(value).map { NSNumber(value: $0) }
-        CFPreferencesSetValue(key as CFString, number, kCFPreferencesAnyApplication,
-                              kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
-        CFPreferencesSynchronize(kCFPreferencesAnyApplication, kCFPreferencesCurrentUser,
-                                 kCFPreferencesCurrentHost)
+    private static func windowNumbers(ownedBy pid: pid_t) -> Set<Int> {
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                                 kCGNullWindowID) as? [[String: Any]] ?? []
+        return Set(windows.compactMap { window in
+            guard (window[kCGWindowOwnerPID as String] as? Int32) == pid else { return nil }
+            return window[kCGWindowNumber as String] as? Int
+        })
     }
 }

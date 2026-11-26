@@ -103,7 +103,7 @@ struct MenuBarCategoriesPanel: View {
                         .padding(.horizontal, 4)
                         .background(Color.primary.opacity(0.06),
                                     in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .opacity(item.section == .visible ? 1 : 0.75)
+                        .opacity(manager.layout.section(for: item.bundleID) == .visible ? 1 : 0.75)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)

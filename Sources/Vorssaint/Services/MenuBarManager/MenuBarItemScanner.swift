@@ -4,10 +4,11 @@
 import AppKit
 import ApplicationServices
 
-/// Reads every app's menu bar icons through Accessibility. Each app exposes
-/// its own icons there on every macOS version, including the ones where the
-/// windows that draw them all belong to Control Center, so no window list
-/// and no Screen Recording grant is involved.
+/// Reads menu bar icons through Accessibility. On macOS 27 every process
+/// still publishes its icons under `AXExtrasMenuBar`, with frames on the
+/// display whose menu bar is active; MenuBarAgent publishes the system's own,
+/// each wrapped in a hosting group, next to the overflow button. A hidden
+/// application publishes nothing.
 enum MenuBarItemScanner {
     struct App {
         let pid: pid_t
@@ -27,17 +28,19 @@ enum MenuBarItemScanner {
         let element: AXUIElement
     }
 
-    /// Main thread: the candidates to ask.
+    /// Main thread: the candidates to ask, MenuBarAgent first.
     static func runningApps() -> [App] {
-        NSWorkspace.shared.runningApplications.compactMap { app in
+        let apps = NSWorkspace.shared.runningApplications.compactMap { app -> App? in
             guard !app.isTerminated, app.processIdentifier > 0 else { return nil }
             let name = app.localizedName ?? app.bundleIdentifier ?? String(app.processIdentifier)
             return App(pid: app.processIdentifier, bundleID: app.bundleIdentifier, name: name)
         }
+        return apps.filter { $0.bundleID == MenuBarManagerSupport.menuBarAgentBundleID }
+            + apps.filter { $0.bundleID != MenuBarManagerSupport.menuBarAgentBundleID }
     }
 
-    /// Off the main thread: an app that is busy holds its answer back until
-    /// the timeout, and this app answers for its own icons on the main thread.
+    /// Off the main thread: a busy app holds its answer back until the
+    /// timeout, and this app answers for its own icons on the main thread.
     static func scan(_ apps: [App]) -> [Entry] {
         let lock = NSLock()
         var entries: [Entry] = []
@@ -53,35 +56,31 @@ enum MenuBarItemScanner {
         }
     }
 
-    private static func readEntries(for app: App) -> [Entry] {
+    static func readEntries(for app: App) -> [Entry] {
         let application = AXUIElementCreateApplication(app.pid)
         AXUIElementSetMessagingTimeout(application, 0.4)
-        var barValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(application, "AXExtrasMenuBar" as CFString, &barValue) == .success,
-              let barValue, CFGetTypeID(barValue) == AXUIElementGetTypeID() else { return [] }
-        let bar = barValue as! AXUIElement
-        var childrenValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(bar, kAXChildrenAttribute as CFString, &childrenValue) == .success,
-              let children = childrenValue as? [AXUIElement] else { return [] }
+        guard let bar = element(application, "AXExtrasMenuBar"),
+              let children = elements(bar, kAXChildrenAttribute as String) else { return [] }
+        let isAgent = app.bundleID == MenuBarManagerSupport.menuBarAgentBundleID
         var result: [Entry] = []
         for (index, child) in children.enumerated() {
-            AXUIElementSetMessagingTimeout(child, 0.4)
-            guard let frame = frame(of: child), frame.width > 0, frame.height > 0 else { continue }
+            // MenuBarAgent's button child is the system overflow control.
+            if isAgent, string(child, kAXRoleAttribute as String) == (kAXButtonRole as String) { continue }
+            let item = isAgent ? (elements(child, kAXChildrenAttribute as String)?.first ?? child) : child
+            AXUIElementSetMessagingTimeout(item, 0.4)
+            guard let frame = frame(of: item), frame.width > 0, frame.height > 0 else { continue }
             result.append(Entry(app: app, index: index,
-                                identifier: string(child, kAXIdentifierAttribute as String),
-                                title: string(child, kAXTitleAttribute as String),
-                                description: string(child, kAXDescriptionAttribute as String),
-                                frame: frame, element: child))
+                                identifier: string(item, kAXIdentifierAttribute as String),
+                                title: string(item, kAXTitleAttribute as String),
+                                description: string(item, kAXDescriptionAttribute as String),
+                                frame: frame, element: item))
         }
         return result
     }
 
     static func frame(of element: AXUIElement) -> CGRect? {
-        var positionValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionValue) == .success,
-              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeValue) == .success,
-              let positionValue, let sizeValue,
+        guard let positionValue = value(element, kAXPositionAttribute as String),
+              let sizeValue = value(element, kAXSizeAttribute as String),
               CFGetTypeID(positionValue) == AXValueGetTypeID(),
               CFGetTypeID(sizeValue) == AXValueGetTypeID() else { return nil }
         var position = CGPoint.zero
@@ -91,65 +90,39 @@ enum MenuBarItemScanner {
         return CGRect(origin: position, size: size)
     }
 
-    private static func string(_ element: AXUIElement, _ attribute: String) -> String? {
+    private static func value(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
-              let text = value as? String, !text.isEmpty else { return nil }
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else { return nil }
+        return value
+    }
+
+    private static func element(_ element: AXUIElement, _ attribute: String) -> AXUIElement? {
+        guard let value = value(element, attribute), CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+        return (value as! AXUIElement)
+    }
+
+    private static func elements(_ element: AXUIElement, _ attribute: String) -> [AXUIElement]? {
+        value(element, attribute) as? [AXUIElement]
+    }
+
+    private static func string(_ element: AXUIElement, _ attribute: String) -> String? {
+        guard let text = value(element, attribute) as? String, !text.isEmpty else { return nil }
         return text
     }
 }
 
-/// Synthetic pointer input for the two things Accessibility cannot do on a
-/// menu bar icon: press one that offers no press action, and carry one to
-/// another place the way a Command-drag does. Call off the main thread; both
-/// pause between events so the menu bar can follow.
+/// Clicks a drawn menu bar icon the way a person would, and puts the pointer
+/// back. Call off the main thread.
 enum MenuBarPointerDriver {
-    private static func post(_ type: CGEventType, at point: CGPoint,
-                             source: CGEventSource?, flags: CGEventFlags) {
-        guard let event = CGEvent(mouseEventSource: source, mouseType: type,
-                                  mouseCursorPosition: point, mouseButton: .left) else { return }
-        event.flags = flags
-        event.post(tap: .cghidEventTap)
-    }
-
-    /// Runs `body` with the pointer cut loose from the mouse, so a hand on
-    /// the mouse cannot bend the gesture, and puts the pointer back after.
-    private static func withPointerHeld(_ body: (CGEventSource?) -> Void) {
+    static func click(at point: CGPoint) {
         let source = CGEventSource(stateID: .hidSystemState)
         let original = CGEvent(source: nil)?.location
-        CGAssociateMouseAndMouseCursorPosition(0)
-        defer {
-            if let original { CGWarpMouseCursorPosition(original) }
-            CGAssociateMouseAndMouseCursorPosition(1)
+        for type in [CGEventType.leftMouseDown, .leftMouseUp] {
+            guard let event = CGEvent(mouseEventSource: source, mouseType: type,
+                                      mouseCursorPosition: point, mouseButton: .left) else { continue }
+            event.post(tap: .cghidEventTap)
+            usleep(30_000)
         }
-        body(source)
-    }
-
-    static func click(at point: CGPoint) {
-        withPointerHeld { source in
-            post(.leftMouseDown, at: point, source: source, flags: [])
-            usleep(60_000)
-            post(.leftMouseUp, at: point, source: source, flags: [])
-            usleep(60_000)
-        }
-    }
-
-    static func commandDrag(from start: CGPoint, toX endX: CGFloat) {
-        withPointerHeld { source in
-            let flags: CGEventFlags = .maskCommand
-            post(.mouseMoved, at: start, source: source, flags: flags)
-            usleep(40_000)
-            post(.leftMouseDown, at: start, source: source, flags: flags)
-            usleep(140_000)
-            let steps = 14
-            for step in 1...steps {
-                let x = start.x + (endX - start.x) * CGFloat(step) / CGFloat(steps)
-                post(.leftMouseDragged, at: CGPoint(x: x, y: start.y), source: source, flags: flags)
-                usleep(18_000)
-            }
-            usleep(140_000)
-            post(.leftMouseUp, at: CGPoint(x: endX, y: start.y), source: source, flags: flags)
-            usleep(90_000)
-        }
+        if let original { CGWarpMouseCursorPosition(original) }
     }
 }

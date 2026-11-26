@@ -172,6 +172,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         FanControlService.recoverIfNeeded()
         SpacesOrderHold.recoverIfNeeded()
+        // Apps a crash or a removed Menu Bar Manager left hidden come back.
+        MenuBarManagerService.recoverIfNeeded()
         // One binding per feature: only available features are touched, so a
         // feature switched off in the hub never even instantiates here.
         FeatureRuntime.shared.syncAtLaunch()
@@ -322,6 +324,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        // Every app the Menu Bar Manager hid comes back when Vorssaint quits.
+        MenuBarManagerService.releaseOnQuit()
         CommandBarService.shared.restoreBorrowedInputSource()
         if AppFeature.notch.isAvailable { NotchService.shared.stop(restoreCapture: false) }
         // Quitting properly means the start worked, whenever it happened.
@@ -2059,9 +2063,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         UserDefaults.standard.set(false, forKey: DefaultsKey.notchHidesMenuBarIcon)
         guard !isReshowingStatusItem else { return }
         isReshowingStatusItem = true
-        // An icon sitting in the manager's own hidden section comes back by
-        // showing that section, which a rebuild alone would not do.
-        MenuBarManagerState.reveal?()
         statusController?.recreateStatusItem()
         verifyIconReappeared(attemptsLeft: Self.reshowVerifyAttempts)
     }
@@ -2166,10 +2167,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     ]
 
     private static func runningMenuBarManagerName() -> String? {
-        // Vorssaint's own manager can be the one keeping the icon off screen.
-        if MenuBarManagerState.isHidingItems {
-            return NSRunningApplication.current.localizedName ?? "Vorssaint"
-        }
         for app in NSWorkspace.shared.runningApplications {
             guard let bundleID = app.bundleIdentifier else { continue }
             if menuBarManagerBundlePrefixes.contains(where: { bundleID.hasPrefix($0) }) {

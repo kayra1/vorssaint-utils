@@ -432,6 +432,11 @@ extension AppFeature {
         case .fanControl:
             return FanControlHardware.hasControllableFan
                 ? nil : FeatureStrings.fanControl(L10n.shared.language).noFans
+        case .menuBarManager:
+            // macOS 27 dropped the old way of hiding icons, and its own
+            // per-app switch is what the manager uses instead.
+            return MenuBarManagerService.isSupported
+                ? nil : FeatureStrings.menuBarManager(L10n.shared.language).requiresMacOS27
         default:
             return nil
         }
