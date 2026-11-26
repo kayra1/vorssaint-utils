@@ -140,7 +140,7 @@ enum ReleaseChangeAliases {
         case .wallpaper: return [.exact("Wallpaper"), "wallpaper gallery", "wallpapers"]
         case .killProcess: return ["kill process", "force kill", "process tree"]
         case .portManager: return ["port manager"]
-        case .menuBarManager: return ["menu bar icon manager", "hidden menu bar icons"]
+        case .menuBarManager: return ["menu bar icon manager", "menu bar dropdown", "menu bar categories"]
         case .notch: return ["dynamic island", "island", "islands", "notch", "volume keys", "volume key",
             "mute key", "volume feedback", "volume indicator", "volume notice", "new track indicator",
             "displays without a notch", "displays without a camera cutout"]

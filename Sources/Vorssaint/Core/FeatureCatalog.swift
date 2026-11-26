@@ -388,8 +388,7 @@ extension AppFeature {
         case .diskImageInstaller: return [.appManagement]
         case .mixer: return [.audioCapture, .accessibility]
         case .musicBlock: return [.accessibility]
-        // Other apps' icons are listed and opened through Accessibility;
-        // hiding them flips macOS's own per-app switch and needs nothing.
+        // Other apps' icons are listed and opened through Accessibility.
         case .menuBarManager: return [.accessibility]
         case .monitorCPU, .monitorMemory, .monitorDisk, .monitorPower: return [.notifications]
         case .clipboardHistory, .shelf, .urlCleaner,

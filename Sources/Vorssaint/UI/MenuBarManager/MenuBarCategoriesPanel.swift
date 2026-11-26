@@ -3,9 +3,8 @@
 
 import SwiftUI
 
-/// The popover under the manager's arrow: every menu bar icon under its
-/// category. Clicking one opens it as a click in the menu bar would, hidden
-/// or not.
+/// The dropdown under the manager's arrow: every menu bar icon under its
+/// category. Clicking one opens it as a click in the menu bar would.
 struct MenuBarCategoriesPanel: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
@@ -18,14 +17,14 @@ struct MenuBarCategoriesPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                Text(strings.categoriesSection)
+                Text(strings.title)
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
                 if manager.isScanning {
                     ProgressView().controlSize(.small)
                 }
                 Button {
-                    manager.closeCategoriesPanel()
+                    manager.closeDropdown()
                     SettingsRouter.shared.page = .menuBarManager
                     appDelegate()?.openSettingsWindow()
                 } label: {
@@ -47,7 +46,7 @@ struct MenuBarCategoriesPanel: View {
     private var content: some View {
         if !permissions.accessibility {
             VStack(alignment: .leading, spacing: 8) {
-                Text(strings.layoutPermission)
+                Text(strings.permissionNeeded)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -103,7 +102,6 @@ struct MenuBarCategoriesPanel: View {
                         .padding(.horizontal, 4)
                         .background(Color.primary.opacity(0.06),
                                     in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .opacity(manager.layout.section(for: item.bundleID) == .visible ? 1 : 0.75)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)

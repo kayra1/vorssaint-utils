@@ -784,16 +784,9 @@ enum DefaultsKey {
     static let panelUtilityScreenRecorder = "panelUtilityScreenRecorder"
     static let panelUtilityPortManager = "panelUtilityPortManager"
 
-    // Menu Bar Manager (macOS 27) — hides and groups other apps' menu bar icons.
+    // Menu Bar Manager (macOS 27) — a dropdown of every menu bar icon, in categories.
     static let menuBarManagerEnabled = "menuBarManagerEnabled"
-    static let menuBarManagerShowOnHover = "menuBarManagerShowOnHover"
-    static let menuBarManagerRehideSeconds = "menuBarManagerRehideSeconds" // 0 keeps the hidden section open
-    static let menuBarManagerClickOpensCategories = "menuBarManagerClickOpensCategories"
     static let menuBarManagerCategories = "menuBarManagerCategories" // JSON, see MenuBarCategoryLayout
-    // The icons last seen per app, and the "Allow in the Menu Bar" switches
-    // this Mac's manager turned off. Both belong to this Mac only.
-    static let menuBarManagerRememberedItems = "menuBarManagerRememberedItems"
-    static let menuBarManagerDisallowed = "menuBarManagerDisallowed"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
@@ -1940,9 +1933,6 @@ enum Defaults {
         DefaultsKey.panelUtilityScreenRecorder: true,
         DefaultsKey.panelUtilityPortManager: true,
         DefaultsKey.menuBarManagerEnabled: false,
-        DefaultsKey.menuBarManagerShowOnHover: false,
-        DefaultsKey.menuBarManagerRehideSeconds: 10,
-        DefaultsKey.menuBarManagerClickOpensCategories: false,
         DefaultsKey.menuBarManagerCategories: "",
         DefaultsKey.screenshotShowCaptureMenuOnShortcut: true,
         DefaultsKey.recorderShowCaptureMenuOnShortcut: true,

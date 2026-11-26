@@ -1,23 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import CoreGraphics
 import Foundation
-
-/// Which part of the menu bar an application's icons belong to. macOS 27
-/// hides whole applications, never single icons, so a section is chosen per
-/// application.
-enum MenuBarSection: String, CaseIterable, Codable {
-    case visible, hidden, alwaysHidden
-}
-
-/// How much of what the manager hides is on the bar right now.
-enum MenuBarRevealState: Equatable {
-    case allHidden
-    /// The hidden section shows; the always hidden one does not.
-    case hiddenRevealed
-    case allRevealed
-}
 
 /// A user-named group of menu bar icons.
 struct MenuBarCategory: Codable, Equatable, Identifiable {
@@ -25,44 +9,17 @@ struct MenuBarCategory: Codable, Equatable, Identifiable {
     var name: String
 }
 
-/// Everything the person arranged: the section of each application and the
-/// categories of each icon. Applications are named by bundle identifier and
-/// icons by `MenuBarManagerSupport.itemKey`, so both follow the app rather
+/// The categories and which icon belongs to which. Icons are named by
+/// `MenuBarManagerSupport.itemKey`, so an assignment follows the app rather
 /// than a place on the bar.
 struct MenuBarCategoryLayout: Codable, Equatable {
     var categories: [MenuBarCategory] = []
     /// Icon key to category id.
     var assignments: [String: String] = [:]
-    /// Bundle identifier to section. Applications missing here are visible.
-    var sections: [String: MenuBarSection] = [:]
-
-    init(categories: [MenuBarCategory] = [], assignments: [String: String] = [:],
-         sections: [String: MenuBarSection] = [:]) {
-        self.categories = categories
-        self.assignments = assignments
-        self.sections = sections
-    }
-
-    // Saves written before sections existed have no `sections` key.
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        categories = try container.decodeIfPresent([MenuBarCategory].self, forKey: .categories) ?? []
-        assignments = try container.decodeIfPresent([String: String].self, forKey: .assignments) ?? [:]
-        sections = try container.decodeIfPresent([String: MenuBarSection].self, forKey: .sections) ?? [:]
-    }
 
     func categoryID(for itemID: String) -> String? {
         guard let id = assignments[itemID], categories.contains(where: { $0.id == id }) else { return nil }
         return id
-    }
-
-    func section(for bundleID: String) -> MenuBarSection {
-        sections[bundleID] ?? .visible
-    }
-
-    mutating func setSection(_ section: MenuBarSection, for bundleID: String) {
-        guard !bundleID.isEmpty else { return }
-        sections[bundleID] = section == .visible ? nil : section
     }
 
     /// False when the name is empty, already taken, or the list is full.
@@ -99,81 +56,16 @@ struct MenuBarCategoryLayout: Codable, Equatable {
     }
 }
 
-/// One menu bar icon as last seen on the bar. A hidden application publishes
-/// nothing through Accessibility, so what the manager knows of its icons is
-/// what it saw while they were showing.
-struct MenuBarRememberedItem: Codable, Equatable {
-    var key: String
-    var title: String
-    var appName: String
-    var identifier: String?
-}
-
 /// The decisions behind the menu bar manager, kept free of AppKit so they can
 /// be tested.
 enum MenuBarManagerSupport {
     static let toggleAutosaveName = "VorssaintMenuBarToggle"
 
-    /// The process that draws the system's own icons on macOS 27. They can
-    /// never be hidden.
+    /// The process that draws the system's own icons on macOS 27.
     static let menuBarAgentBundleID = "com.apple.MenuBarAgent"
 
     static let maxCategories = 12
     static let maxCategoryNameLength = 40
-    static let maxRememberedPerApp = 8
-
-    /// Seconds before the hidden section closes again; zero keeps it open.
-    static let rehideChoices = [0, 5, 10, 15, 30, 60]
-    static let defaultRehideSeconds = 10
-
-    static func sanitizedRehideSeconds(_ value: Int) -> Int {
-        rehideChoices.contains(value) ? value : defaultRehideSeconds
-    }
-
-    /// Applications that may never be hidden: the system's own icons, and
-    /// this app, whose arrow is what brings the others back.
-    static func canHide(bundleID: String, ownBundleID: String?) -> Bool {
-        !bundleID.isEmpty && bundleID != menuBarAgentBundleID && bundleID != ownBundleID
-    }
-
-    // MARK: What to hide
-
-    /// The applications to keep off the bar for the given state. Applications
-    /// shown for a moment, to open one of their icons, are left out.
-    static func concealed(layout: MenuBarCategoryLayout, state: MenuBarRevealState,
-                          temporarilyShown: Set<String>, ownBundleID: String?) -> Set<String> {
-        let sections: Set<MenuBarSection>
-        switch state {
-        case .allHidden: sections = [.hidden, .alwaysHidden]
-        case .hiddenRevealed: sections = [.alwaysHidden]
-        case .allRevealed: sections = []
-        }
-        return Set(layout.sections.compactMap { bundleID, section in
-            sections.contains(section) && canHide(bundleID: bundleID, ownBundleID: ownBundleID)
-                ? bundleID : nil
-        }).subtracting(temporarilyShown)
-    }
-
-    /// Whether the pointer rests on the status half of the menu bar.
-    static func isInStatusBand(point: CGPoint, screenFrame: CGRect, barHeight: CGFloat) -> Bool {
-        guard barHeight > 0, point.x >= screenFrame.midX, point.x <= screenFrame.maxX else { return false }
-        return point.y >= screenFrame.maxY - barHeight && point.y <= screenFrame.maxY
-    }
-
-    /// The outermost application bundle a path lies in, for a helper whose
-    /// menu bar switch belongs to the app around it (Docker Desktop's icon
-    /// comes from a helper inside Docker.app). nil when the path is in no
-    /// application bundle.
-    static func outermostApplicationPath(of path: String) -> String? {
-        var components: [String] = []
-        for component in path.split(separator: "/", omittingEmptySubsequences: true) {
-            components.append(String(component))
-            if component.lowercased().hasSuffix(".app") {
-                return "/" + components.joined(separator: "/")
-            }
-        }
-        return nil
-    }
 
     // MARK: Identity
 
@@ -183,11 +75,6 @@ enum MenuBarManagerSupport {
         let owner = bundleID.flatMap { $0.isEmpty ? nil : $0 } ?? appName
         let identifier = identifier?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return owner + "|" + (identifier.isEmpty ? "#\(index)" : identifier)
-    }
-
-    /// The bundle identifier an icon key starts with.
-    static func bundleID(ofItemKey key: String) -> String {
-        String(key.split(separator: "|", maxSplits: 1, omittingEmptySubsequences: false).first ?? "")
     }
 
     /// The name shown for an icon. Descriptions often carry live state after
@@ -236,7 +123,6 @@ enum MenuBarManagerSupport {
         }
         let known = Set(result.categories.map(\.id))
         result.assignments = layout.assignments.filter { !$0.key.isEmpty && known.contains($0.value) }
-        result.sections = layout.sections.filter { !$0.key.isEmpty && $0.value != .visible }
         return result
     }
 
@@ -251,21 +137,6 @@ enum MenuBarManagerSupport {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         guard let data = try? encoder.encode(sanitized(layout)) else { return "" }
-        return String(data: data, encoding: .utf8) ?? ""
-    }
-
-    static func decodeRemembered(_ raw: String) -> [String: [MenuBarRememberedItem]] {
-        guard let data = raw.data(using: .utf8),
-              let stored = try? JSONDecoder().decode([String: [MenuBarRememberedItem]].self, from: data)
-        else { return [:] }
-        return stored.filter { !$0.key.isEmpty && !$0.value.isEmpty }
-            .mapValues { Array($0.prefix(maxRememberedPerApp)) }
-    }
-
-    static func encodeRemembered(_ items: [String: [MenuBarRememberedItem]]) -> String {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        guard let data = try? encoder.encode(items.filter { !$0.value.isEmpty }) else { return "" }
         return String(data: data, encoding: .utf8) ?? ""
     }
 
@@ -286,104 +157,5 @@ enum MenuBarManagerSupport {
         let loose = itemIDs.filter { layout.categoryID(for: $0) == nil }
         if !loose.isEmpty { result.append(CategoryGroup(categoryID: nil, itemIDs: loose)) }
         return result
-    }
-}
-
-/// Pure rules for macOS 27's own list of applications allowed in the menu bar.
-///
-/// The switch "Allow in the Menu Bar" (System Settings > Menu Bar) is kept by
-/// MenuBarAgent in the `trackedApplications` preference of the
-/// `group.com.apple.controlcenter` container: data holding a binary property
-/// list, a flat array alternating key, value, key, value. A key is
-/// `{"bundle": {"_0": "<bundle id>"}}` (other key shapes exist for binaries
-/// without a team signature); a value carries `isAllowed`. Only `isAllowed`
-/// under bundle keys is ever changed; everything else goes back exactly as it
-/// came. Format as measured by Ice on macOS 27.0.1
-/// (https://github.com/jordanbaird/Ice, GPL-3.0).
-enum MenuBarTrackedApplications {
-    struct Entry: Equatable {
-        /// nil for a key that is not a bundle key.
-        let bundleID: String?
-        let isAllowed: Bool?
-        /// Where the value stands in the flat array; its key is just before.
-        let valueIndex: Int
-    }
-
-    static func entries(in array: [Any]) -> [Entry] {
-        guard array.count >= 2 else { return [] }
-        return stride(from: 0, to: array.count - 1, by: 2).map { keyIndex in
-            let value = array[keyIndex + 1] as? [String: Any]
-            return Entry(bundleID: bundleID(ofKey: array[keyIndex]),
-                         isAllowed: value?["isAllowed"] as? Bool,
-                         valueIndex: keyIndex + 1)
-        }
-    }
-
-    static func bundleID(ofKey key: Any) -> String? {
-        guard let key = key as? [String: Any], key.count == 1,
-              let bundle = key["bundle"] as? [String: Any] else { return nil }
-        return bundle["_0"] as? String
-    }
-
-    /// The current switch of each bundle in the list.
-    static func allowedStates(in array: [Any]) -> [String: Bool] {
-        var states = [String: Bool]()
-        for entry in entries(in: array) {
-            guard let bundleID = entry.bundleID, let isAllowed = entry.isAllowed else { continue }
-            states[bundleID] = (states[bundleID] ?? false) || isAllowed
-        }
-        return states
-    }
-
-    /// The list with the switch set for the given bundles, and the bundles it
-    /// actually changed.
-    static func settingAllowed(_ allowed: Bool, for bundleIDs: Set<String>,
-                               in array: [Any]) -> (array: [Any], changed: Set<String>) {
-        guard !bundleIDs.isEmpty else { return (array, []) }
-        var result = array
-        var changed = Set<String>()
-        for entry in entries(in: array) {
-            guard let bundleID = entry.bundleID, bundleIDs.contains(bundleID),
-                  let isAllowed = entry.isAllowed, isAllowed != allowed,
-                  var value = array[entry.valueIndex] as? [String: Any] else { continue }
-            value["isAllowed"] = allowed
-            result[entry.valueIndex] = value
-            changed.insert(bundleID)
-        }
-        return (result, changed)
-    }
-
-    static func decode(_ data: Data) -> [Any]? {
-        try? PropertyListSerialization.propertyList(from: data, format: nil) as? [Any]
-    }
-
-    static func encode(_ array: [Any]) throws -> Data {
-        try PropertyListSerialization.data(fromPropertyList: array, format: .binary, options: 0)
-    }
-
-    struct Plan: Equatable {
-        /// Switches to turn off now.
-        let disallow: Set<String>
-        /// Switches this app turned off earlier that may go back on.
-        let allow: Set<String>
-        /// What stays recorded as turned off by this app.
-        let recorded: Set<String>
-        /// Concealed apps macOS keeps no switch for yet; retried later.
-        let untracked: Set<String>
-    }
-
-    /// What to change so that exactly `concealed` is kept off the bar by this
-    /// app. Only switches this app turned off (`recorded`) are ever turned
-    /// back on: one the person turned off in System Settings stays theirs.
-    /// `switchFor` maps an application to the identifier its switch is kept
-    /// under.
-    static func plan(concealed: Set<String>, states: [String: Bool], recorded: Set<String>,
-                     switchFor: (String) -> String) -> Plan {
-        let switches = Set(concealed.map(switchFor))
-        let disallow = Set(switches.filter { states[$0] == true })
-        let allow = recorded.subtracting(switches)
-        let stillOff = recorded.intersection(switches).filter { states[$0] == false }
-        return Plan(disallow: disallow, allow: allow, recorded: stillOff.union(disallow),
-                    untracked: Set(concealed.filter { states[switchFor($0)] == nil }))
     }
 }

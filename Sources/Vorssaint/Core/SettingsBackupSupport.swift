@@ -140,10 +140,6 @@ enum SettingsBackupSupport {
         // owed, belong to this Mac's Dock.
         DefaultsKey.spacesOrderRestore,
         DefaultsKey.spacesOrderRestartPending,
-        // Which apps this Mac's menu bar manager switched off, and the icons
-        // it last saw, describe this Mac's apps.
-        DefaultsKey.menuBarManagerDisallowed,
-        DefaultsKey.menuBarManagerRememberedItems,
         // A Bluetooth restore owed by one sleeping Mac means nothing on another.
         DefaultsKey.bluetoothSleepRestorePending,
         DefaultsKey.micMuteActive,
