@@ -251,6 +251,7 @@ final class FeatureRuntime: ObservableObject {
         },
         .autoQuit: { AutoQuitService.shared.syncWithPreferences() },
         .spacesOrder: { SpacesOrderHold.shared.syncWithPreferences() },
+        .menuBarManager: { MenuBarManagerService.shared.syncWithPreferences() },
         .scrollInverter: { ScrollInverter.shared.syncWithPreferences() },
         .scrollHorizontal: { ScrollInverter.shared.syncWithPreferences() },
         .scrollZoom: { ScrollInverter.shared.syncWithPreferences() },
@@ -431,6 +432,10 @@ extension AppFeature {
         case .fanControl:
             return FanControlHardware.hasControllableFan
                 ? nil : FeatureStrings.fanControl(L10n.shared.language).noFans
+        case .menuBarManager:
+            // Built for the menu bar macOS 27 draws.
+            return MenuBarManagerService.isSupported
+                ? nil : FeatureStrings.menuBarManager(L10n.shared.language).requiresMacOS27
         default:
             return nil
         }
