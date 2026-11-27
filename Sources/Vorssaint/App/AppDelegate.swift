@@ -172,6 +172,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         FanControlService.recoverIfNeeded()
         SpacesOrderHold.recoverIfNeeded()
+        // Apps a crash or a removed menu bar dropdown left hidden come back.
+        MenuBarManagerService.recoverIfNeeded()
         // One binding per feature: only available features are touched, so a
         // feature switched off in the hub never even instantiates here.
         FeatureRuntime.shared.syncAtLaunch()
@@ -322,6 +324,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        // Every app the menu bar dropdown hid comes back when Vorssaint quits.
+        MenuBarManagerService.releaseOnQuit()
         CommandBarService.shared.restoreBorrowedInputSource()
         if AppFeature.notch.isAvailable { NotchService.shared.stop(restoreCapture: false) }
         // Quitting properly means the start worked, whenever it happened.

@@ -15,7 +15,7 @@ struct MenuBarManagerSettings: View {
 
     var body: some View {
         Form {
-            Section(strings.title) {
+            Section {
                 Toggle(strings.enableLabel, isOn: supported ? $enabled : .constant(false))
                     .disabled(!supported)
                     .onChange(of: enabled) { _, _ in manager.syncWithPreferences() }
@@ -25,6 +25,9 @@ struct MenuBarManagerSettings: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if supported, enabled {
+                if MenuBarManagerService.canHideApps, permissions.accessibility {
+                    showSection
+                }
                 categoriesSection
                 iconsSection
             }
@@ -32,6 +35,64 @@ struct MenuBarManagerSettings: View {
         .formStyle(.grouped)
         .onAppear {
             if supported, enabled { manager.refreshItems() }
+        }
+    }
+
+    // MARK: Showing in the menu bar
+
+    private var showSection: some View {
+        Section(strings.showSection) {
+            Text(strings.showCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if manager.hideFailed {
+                Label(strings.hideFailed, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(manager.apps) { app in
+                HStack(spacing: 8) {
+                    appGlyph(app)
+                    Text(app.name)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                    Spacer(minLength: 6)
+                    if app.canHide {
+                        Toggle(strings.showSection, isOn: shownBinding(for: app.bundleID))
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                    } else {
+                        Text(strings.alwaysShown)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 1)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func appGlyph(_ app: MenuBarManagedApp) -> some View {
+        if let item = manager.items.first(where: { $0.bundleID == app.bundleID }) {
+            MenuBarItemGlyph(item: item, size: 18)
+        } else {
+            Image(systemName: "app.dashed")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .frame(width: 18, height: 18)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private func shownBinding(for bundleID: String) -> Binding<Bool> {
+        Binding {
+            !manager.layout.isHidden(bundleID)
+        } set: { shown in
+            manager.setHidden(!shown, for: bundleID)
         }
     }
 

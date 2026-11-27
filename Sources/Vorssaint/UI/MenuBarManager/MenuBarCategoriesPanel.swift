@@ -17,8 +17,6 @@ struct MenuBarCategoriesPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                Text(strings.title)
-                    .font(.system(size: 13, weight: .semibold))
                 Spacer()
                 if manager.isScanning {
                     ProgressView().controlSize(.small)
@@ -102,6 +100,7 @@ struct MenuBarCategoriesPanel: View {
                         .padding(.horizontal, 4)
                         .background(Color.primary.opacity(0.06),
                                     in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .opacity(item.isLive ? 1 : 0.7)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)

@@ -787,6 +787,10 @@ enum DefaultsKey {
     // Menu Bar Manager (macOS 27) — a dropdown of every menu bar icon, in categories.
     static let menuBarManagerEnabled = "menuBarManagerEnabled"
     static let menuBarManagerCategories = "menuBarManagerCategories" // JSON, see MenuBarCategoryLayout
+    // The icons last seen per app, and the "Allow in the Menu Bar" switches
+    // the dropdown turned off. Both belong to this Mac only.
+    static let menuBarManagerRememberedItems = "menuBarManagerRememberedItems"
+    static let menuBarManagerDisallowed = "menuBarManagerDisallowed"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"

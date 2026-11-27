@@ -25,6 +25,10 @@ struct MenuBarManagerStrings {
     let refresh: String
     let noIcons: String
     let openSettings: String
+    let showSection: String
+    let showCaption: String
+    let hideFailed: String
+    let alwaysShown: String
 }
 
 extension FeatureStrings {
@@ -69,7 +73,11 @@ extension MenuBarManagerStrings {
         iconsCaption: "Every icon in the menu bar right now. Choose where each one appears in the dropdown.",
         refresh: "Refresh",
         noIcons: "No menu bar icons found",
-        openSettings: "Menu Bar Manager Settings…"
+        openSettings: "Menu Bar Manager Settings…",
+        showSection: "Show in the menu bar",
+        showCaption: "Turn an app off to keep its icons out of the menu bar. They stay in the dropdown, and opening one there shows the app for as long as its menu is open. macOS hides whole apps, so all of an app’s icons go together. Quitting Vorssaint or turning the dropdown off brings them all back.",
+        hideFailed: "The menu bar could not be changed, so nothing is hidden. Open System Settings > Menu Bar to check that the apps are still listed there.",
+        alwaysShown: "Always shown"
     )
     static let ptBR = MenuBarManagerStrings(
         title: "Gerenciador da barra de menus",
@@ -90,7 +98,11 @@ extension MenuBarManagerStrings {
         iconsCaption: "Todos os ícones que estão na barra de menus agora. Escolha onde cada um aparece no menu suspenso.",
         refresh: "Atualizar",
         noIcons: "Nenhum ícone encontrado na barra de menus",
-        openSettings: "Ajustes do gerenciador da barra de menus…"
+        openSettings: "Ajustes do gerenciador da barra de menus…",
+        showSection: "Mostrar na barra de menus",
+        showCaption: "Desative um app para manter os ícones dele fora da barra de menus. Eles continuam no menu suspenso, e abrir um deles ali mostra o app enquanto o menu estiver aberto. O macOS oculta apps inteiros, então todos os ícones de um app saem juntos. Encerrar o Vorssaint ou desativar o menu suspenso traz todos de volta.",
+        hideFailed: "Não foi possível alterar a barra de menus, então nada foi ocultado. Abra Ajustes do Sistema > Barra de Menus para conferir se os apps continuam listados lá.",
+        alwaysShown: "Sempre visível"
     )
     static let tr = MenuBarManagerStrings(
         title: "Menü Çubuğu Yöneticisi",
@@ -111,7 +123,11 @@ extension MenuBarManagerStrings {
         iconsCaption: "Şu anda menü çubuğundaki tüm simgeler. Her birinin açılır menüde nerede görüneceğini seçin.",
         refresh: "Yenile",
         noIcons: "Menü çubuğu simgesi bulunamadı",
-        openSettings: "Menü Çubuğu Yöneticisi Ayarları…"
+        openSettings: "Menü Çubuğu Yöneticisi Ayarları…",
+        showSection: "Menü çubuğunda göster",
+        showCaption: "Bir uygulamanın simgelerini menü çubuğunun dışında tutmak için onu kapatın. Simgeler açılır menüde kalır ve oradan birini açmak, menüsü açık kaldığı sürece uygulamayı gösterir. macOS uygulamaları bütün olarak gizler, bu yüzden bir uygulamanın tüm simgeleri birlikte gider. Vorssaint’ten çıkmak veya açılır menüyü kapatmak hepsini geri getirir.",
+        hideFailed: "Menü çubuğu değiştirilemediği için hiçbir şey gizlenmedi. Uygulamaların hâlâ orada listelendiğini görmek için Sistem Ayarları > Menü Çubuğu’nu açın.",
+        alwaysShown: "Her zaman görünür"
     )
     static let ru = MenuBarManagerStrings(
         title: "Менеджер строки меню",
@@ -132,7 +148,11 @@ extension MenuBarManagerStrings {
         iconsCaption: "Все значки, которые сейчас есть в строке меню. Выберите, где каждый из них появится в списке.",
         refresh: "Обновить",
         noIcons: "Значки строки меню не найдены",
-        openSettings: "Настройки менеджера строки меню…"
+        openSettings: "Настройки менеджера строки меню…",
+        showSection: "Показывать в строке меню",
+        showCaption: "Выключите приложение, чтобы убрать его значки из строки меню. Они останутся в выпадающем списке, и если открыть значок оттуда, приложение будет показано, пока открыто его меню. macOS скрывает приложения целиком, поэтому все значки приложения уходят вместе. Выход из Vorssaint или отключение списка возвращает их все.",
+        hideFailed: "Не удалось изменить строку меню, поэтому ничего не скрыто. Откройте Системные настройки > Строка меню и проверьте, что приложения там по-прежнему есть.",
+        alwaysShown: "Всегда видимые"
     )
     static let es = MenuBarManagerStrings(
         title: "Gestor de la barra de menús",
@@ -153,7 +173,11 @@ extension MenuBarManagerStrings {
         iconsCaption: "Todos los iconos que hay ahora en la barra de menús. Elige dónde aparece cada uno en el desplegable.",
         refresh: "Actualizar",
         noIcons: "No se han encontrado iconos en la barra de menús",
-        openSettings: "Ajustes del gestor de la barra de menús…"
+        openSettings: "Ajustes del gestor de la barra de menús…",
+        showSection: "Mostrar en la barra de menús",
+        showCaption: "Desactiva una app para que sus iconos no aparezcan en la barra de menús. Siguen en el desplegable, y al abrir uno desde allí la app se muestra mientras su menú esté abierto. macOS oculta apps enteras, así que todos los iconos de una app se van juntos. Salir de Vorssaint o desactivar el desplegable los devuelve todos.",
+        hideFailed: "No se ha podido cambiar la barra de menús, así que no se oculta nada. Abre Ajustes del Sistema > Barra de menús para comprobar que las apps siguen apareciendo allí.",
+        alwaysShown: "Siempre visible"
     )
     static let sk = MenuBarManagerStrings(
         title: "Správca lišty",
@@ -174,7 +198,11 @@ extension MenuBarManagerStrings {
         iconsCaption: "Všetky ikony, ktoré sú teraz v lište. Vyberte, kde sa každá zobrazí v ponuke.",
         refresh: "Obnoviť",
         noIcons: "V lište sa nenašli žiadne ikony",
-        openSettings: "Nastavenia správcu lišty…"
+        openSettings: "Nastavenia správcu lišty…",
+        showSection: "Zobraziť v lište",
+        showCaption: "Vypnite aplikáciu, aby jej ikony neboli v lište. Zostanú v rozbaľovacej ponuke a keď niektorú otvoríte odtiaľ, aplikácia sa zobrazí, kým je jej ponuka otvorená. macOS skrýva celé aplikácie, takže všetky ikony aplikácie odídu spolu. Ukončenie Vorssaint alebo vypnutie ponuky ich všetky vráti.",
+        hideFailed: "Lištu sa nepodarilo zmeniť, takže sa nič neskrylo. Otvorte Systémové nastavenia > Lišta a skontrolujte, či sú tam aplikácie stále uvedené.",
+        alwaysShown: "Vždy zobrazené"
     )
     static let de = MenuBarManagerStrings(
         title: "Menüleisten-Manager",
@@ -195,7 +223,11 @@ extension MenuBarManagerStrings {
         iconsCaption: "Alle Symbole, die gerade in der Menüleiste sind. Wähle, wo jedes im Aufklappmenü erscheint.",
         refresh: "Aktualisieren",
         noIcons: "Keine Menüleistensymbole gefunden",
-        openSettings: "Einstellungen für den Menüleisten-Manager …"
+        openSettings: "Einstellungen für den Menüleisten-Manager …",
+        showSection: "In der Menüleiste zeigen",
+        showCaption: "Schalte eine App aus, um ihre Symbole aus der Menüleiste zu nehmen. Sie bleiben im Aufklappmenü, und wenn du eines dort öffnest, wird die App gezeigt, solange ihr Menü offen ist. macOS blendet ganze Apps aus, daher verschwinden alle Symbole einer App gemeinsam. Wenn du Vorssaint beendest oder das Aufklappmenü ausschaltest, kommen alle zurück.",
+        hideFailed: "Die Menüleiste konnte nicht geändert werden, daher ist nichts ausgeblendet. Öffne Systemeinstellungen > Menüleiste und prüfe, ob die Apps dort noch aufgeführt sind.",
+        alwaysShown: "Immer sichtbar"
     )
     static let fr = MenuBarManagerStrings(
         title: "Gestionnaire de la barre des menus",
@@ -216,7 +248,11 @@ extension MenuBarManagerStrings {
         iconsCaption: "Toutes les icônes présentes dans la barre des menus. Choisissez où chacune apparaît dans le menu déroulant.",
         refresh: "Actualiser",
         noIcons: "Aucune icône trouvée dans la barre des menus",
-        openSettings: "Réglages du gestionnaire de la barre des menus…"
+        openSettings: "Réglages du gestionnaire de la barre des menus…",
+        showSection: "Afficher dans la barre des menus",
+        showCaption: "Désactivez une app pour retirer ses icônes de la barre des menus. Elles restent dans le menu déroulant, et en ouvrir une depuis celui-ci affiche l’app tant que son menu est ouvert. macOS masque des apps entières, toutes les icônes d’une app partent donc ensemble. Quitter Vorssaint ou désactiver le menu déroulant les fait toutes revenir.",
+        hideFailed: "Impossible de modifier la barre des menus, rien n’est donc masqué. Ouvrez Réglages Système > Barre des menus pour vérifier que les apps y figurent toujours.",
+        alwaysShown: "Toujours affichée"
     )
     static let it = MenuBarManagerStrings(
         title: "Gestore della barra dei menu",
@@ -237,7 +273,11 @@ extension MenuBarManagerStrings {
         iconsCaption: "Tutte le icone presenti ora nella barra dei menu. Scegli dove compare ciascuna nel menu a discesa.",
         refresh: "Aggiorna",
         noIcons: "Nessuna icona trovata nella barra dei menu",
-        openSettings: "Impostazioni del gestore della barra dei menu…"
+        openSettings: "Impostazioni del gestore della barra dei menu…",
+        showSection: "Mostra nella barra dei menu",
+        showCaption: "Disattiva un’app per togliere le sue icone dalla barra dei menu. Restano nel menu a discesa, e aprirne una da lì mostra l’app finché il suo menu è aperto. macOS nasconde app intere, quindi tutte le icone di un’app spariscono insieme. Uscire da Vorssaint o disattivare il menu a discesa le riporta tutte.",
+        hideFailed: "Non è stato possibile modificare la barra dei menu, quindi non è nascosto nulla. Apri Impostazioni di Sistema > Barra dei menu per verificare che le app siano ancora elencate.",
+        alwaysShown: "Sempre visibile"
     )
     static let ja = MenuBarManagerStrings(
         title: "メニューバーマネージャ",
@@ -258,7 +298,11 @@ extension MenuBarManagerStrings {
         iconsCaption: "現在メニューバーにあるすべてのアイコンです。ドロップダウンでの表示先をそれぞれ選びます。",
         refresh: "更新",
         noIcons: "メニューバーのアイコンが見つかりません",
-        openSettings: "メニューバーマネージャの設定…"
+        openSettings: "メニューバーマネージャの設定…",
+        showSection: "メニューバーに表示",
+        showCaption: "アプリをオフにすると、そのアイコンをメニューバーから外せます。アイコンはドロップダウンに残り、そこから開くと、メニューが開いている間だけアプリが表示されます。macOSはアプリ単位で隠すため、同じアプリのアイコンはまとめて消えます。Vorssaintを終了するか、ドロップダウンをオフにするとすべて戻ります。",
+        hideFailed: "メニューバーを変更できなかったため、何も隠れていません。システム設定 > メニューバーを開き、アプリが引き続き表示されているか確認してください。",
+        alwaysShown: "常に表示"
     )
     static let ko = MenuBarManagerStrings(
         title: "메뉴 막대 관리자",
@@ -279,7 +323,11 @@ extension MenuBarManagerStrings {
         iconsCaption: "지금 메뉴 막대에 있는 모든 아이콘입니다. 각 아이콘이 드롭다운의 어디에 표시될지 선택하세요.",
         refresh: "새로 고침",
         noIcons: "메뉴 막대 아이콘을 찾을 수 없습니다",
-        openSettings: "메뉴 막대 관리자 설정…"
+        openSettings: "메뉴 막대 관리자 설정…",
+        showSection: "메뉴 막대에 표시",
+        showCaption: "앱을 끄면 해당 앱의 아이콘이 메뉴 막대에서 빠집니다. 아이콘은 드롭다운에 남아 있으며, 거기서 열면 메뉴가 열려 있는 동안만 앱이 표시됩니다. macOS는 앱 단위로 가리므로 한 앱의 아이콘은 함께 사라집니다. Vorssaint를 종료하거나 드롭다운을 끄면 모두 돌아옵니다.",
+        hideFailed: "메뉴 막대를 변경할 수 없어 아무것도 가리지 않았습니다. 시스템 설정 > 메뉴 막대를 열어 앱이 아직 목록에 있는지 확인하세요.",
+        alwaysShown: "항상 표시"
     )
     static let uk = MenuBarManagerStrings(
         title: "Менеджер смуги меню",
@@ -300,7 +348,11 @@ extension MenuBarManagerStrings {
         iconsCaption: "Усі значки, що зараз є у смузі меню. Виберіть, де кожен з’явиться в списку.",
         refresh: "Оновити",
         noIcons: "Значків смуги меню не знайдено",
-        openSettings: "Параметри менеджера смуги меню…"
+        openSettings: "Параметри менеджера смуги меню…",
+        showSection: "Показувати у смузі меню",
+        showCaption: "Вимкніть програму, щоб прибрати її значки зі смуги меню. Вони лишаться у спадному списку, і якщо відкрити значок звідти, програму буде показано, доки відкрите її меню. macOS приховує програми повністю, тому всі значки програми зникають разом. Вихід із Vorssaint або вимкнення списку повертає їх усі.",
+        hideFailed: "Не вдалося змінити смугу меню, тому нічого не приховано. Відкрийте Системні параметри > Смуга меню й перевірте, чи програми досі там є.",
+        alwaysShown: "Завжди видимі"
     )
     static let zhHans = MenuBarManagerStrings(
         title: "菜单栏管理器",
@@ -321,7 +373,11 @@ extension MenuBarManagerStrings {
         iconsCaption: "当前菜单栏中的所有图标。选择每个图标在下拉菜单中的位置。",
         refresh: "刷新",
         noIcons: "未找到菜单栏图标",
-        openSettings: "菜单栏管理器设置…"
+        openSettings: "菜单栏管理器设置…",
+        showSection: "在菜单栏中显示",
+        showCaption: "关闭某个 App，即可让它的图标不出现在菜单栏中。这些图标仍在下拉菜单里，从那里打开时，App 会在其菜单打开期间显示。macOS 按 App 整体隐藏，因此同一 App 的所有图标会一起消失。退出 Vorssaint 或关闭下拉菜单后，它们都会恢复。",
+        hideFailed: "无法更改菜单栏，因此没有隐藏任何内容。打开“系统设置”>“菜单栏”，确认这些 App 仍在列表中。",
+        alwaysShown: "始终显示"
     )
     static let zhTW = MenuBarManagerStrings(
         title: "選單列管理器",
@@ -342,7 +398,11 @@ extension MenuBarManagerStrings {
         iconsCaption: "目前選單列中的所有圖像。選擇每個圖像在下拉式選單中的位置。",
         refresh: "重新整理",
         noIcons: "找不到選單列圖像",
-        openSettings: "選單列管理器設定…"
+        openSettings: "選單列管理器設定…",
+        showSection: "在選單列中顯示",
+        showCaption: "關閉某個 App，即可讓它的圖像不出現在選單列中。這些圖像仍在下拉式選單裡，從那裡打開時，App 會在其選單打開期間顯示。macOS 以 App 為單位隱藏，因此同一 App 的所有圖像會一起消失。結束 Vorssaint 或關閉下拉式選單後，它們都會恢復。",
+        hideFailed: "無法更改選單列，因此沒有隱藏任何項目。打開「系統設定」>「選單列」，確認這些 App 仍在列表中。",
+        alwaysShown: "永遠顯示"
     )
     static let zhHK = MenuBarManagerStrings(
         title: "選單列管理員",
@@ -363,6 +423,10 @@ extension MenuBarManagerStrings {
         iconsCaption: "目前選單列中的所有圖像。選擇每個圖像在下拉式選單中的位置。",
         refresh: "重新整理",
         noIcons: "找不到選單列圖像",
-        openSettings: "選單列管理員設定…"
+        openSettings: "選單列管理員設定…",
+        showSection: "在選單列中顯示",
+        showCaption: "關閉某個 App，即可讓它的圖像不出現在選單列中。這些圖像仍在下拉式選單裡，從那裡開啟時，App 會在其選單開啟期間顯示。macOS 以 App 為單位隱藏，因此同一 App 的所有圖像會一起消失。結束 Vorssaint 或關閉下拉式選單後，它們都會恢復。",
+        hideFailed: "無法更改選單列，因此沒有隱藏任何項目。開啟「系統設定」>「選單列」，確認這些 App 仍在列表中。",
+        alwaysShown: "永遠顯示"
     )
 }
