@@ -28,6 +28,7 @@ struct MenuBarManagerStrings {
     let showSection: String
     let showCaption: String
     let hideFailed: String
+    let hideRefused: String
     let alwaysShown: String
 }
 
@@ -77,6 +78,7 @@ extension MenuBarManagerStrings {
         showSection: "Show in the menu bar",
         showCaption: "Turn an app off to keep its icons out of the menu bar. They stay in the dropdown, and opening one there shows the app for as long as its menu is open. macOS hides whole apps, so all of an app’s icons go together. Quitting Vorssaint or turning the dropdown off brings them all back.",
         hideFailed: "The menu bar could not be changed, so nothing is hidden. Open System Settings > Menu Bar to check that the apps are still listed there.",
+        hideRefused: "macOS did not let Vorssaint change the menu bar, so nothing is hidden. Look in System Settings > Privacy & Security for a request from Vorssaint, allow it, then turn the app off here again.",
         alwaysShown: "Always shown"
     )
     static let ptBR = MenuBarManagerStrings(
@@ -102,6 +104,7 @@ extension MenuBarManagerStrings {
         showSection: "Mostrar na barra de menus",
         showCaption: "Desative um app para manter os ícones dele fora da barra de menus. Eles continuam no menu suspenso, e abrir um deles ali mostra o app enquanto o menu estiver aberto. O macOS oculta apps inteiros, então todos os ícones de um app saem juntos. Encerrar o Vorssaint ou desativar o menu suspenso traz todos de volta.",
         hideFailed: "Não foi possível alterar a barra de menus, então nada foi ocultado. Abra Ajustes do Sistema > Barra de Menus para conferir se os apps continuam listados lá.",
+        hideRefused: "O macOS não permitiu que o Vorssaint alterasse a barra de menus, então nada foi ocultado. Procure em Ajustes do Sistema > Privacidade e Segurança um pedido do Vorssaint, permita-o e desative o app aqui de novo.",
         alwaysShown: "Sempre visível"
     )
     static let tr = MenuBarManagerStrings(
@@ -127,6 +130,7 @@ extension MenuBarManagerStrings {
         showSection: "Menü çubuğunda göster",
         showCaption: "Bir uygulamanın simgelerini menü çubuğunun dışında tutmak için onu kapatın. Simgeler açılır menüde kalır ve oradan birini açmak, menüsü açık kaldığı sürece uygulamayı gösterir. macOS uygulamaları bütün olarak gizler, bu yüzden bir uygulamanın tüm simgeleri birlikte gider. Vorssaint’ten çıkmak veya açılır menüyü kapatmak hepsini geri getirir.",
         hideFailed: "Menü çubuğu değiştirilemediği için hiçbir şey gizlenmedi. Uygulamaların hâlâ orada listelendiğini görmek için Sistem Ayarları > Menü Çubuğu’nu açın.",
+        hideRefused: "macOS, Vorssaint’in menü çubuğunu değiştirmesine izin vermedi, bu yüzden hiçbir şey gizlenmedi. Sistem Ayarları > Gizlilik ve Güvenlik’te Vorssaint’ten gelen bir isteği bulup izin verin, ardından uygulamayı burada yeniden kapatın.",
         alwaysShown: "Her zaman görünür"
     )
     static let ru = MenuBarManagerStrings(
@@ -152,6 +156,7 @@ extension MenuBarManagerStrings {
         showSection: "Показывать в строке меню",
         showCaption: "Выключите приложение, чтобы убрать его значки из строки меню. Они останутся в выпадающем списке, и если открыть значок оттуда, приложение будет показано, пока открыто его меню. macOS скрывает приложения целиком, поэтому все значки приложения уходят вместе. Выход из Vorssaint или отключение списка возвращает их все.",
         hideFailed: "Не удалось изменить строку меню, поэтому ничего не скрыто. Откройте Системные настройки > Строка меню и проверьте, что приложения там по-прежнему есть.",
+        hideRefused: "macOS не позволила Vorssaint изменить строку меню, поэтому ничего не скрыто. Найдите в Системных настройках > Конфиденциальность и безопасность запрос от Vorssaint, разрешите его и снова выключите приложение здесь.",
         alwaysShown: "Всегда видимые"
     )
     static let es = MenuBarManagerStrings(
@@ -177,6 +182,7 @@ extension MenuBarManagerStrings {
         showSection: "Mostrar en la barra de menús",
         showCaption: "Desactiva una app para que sus iconos no aparezcan en la barra de menús. Siguen en el desplegable, y al abrir uno desde allí la app se muestra mientras su menú esté abierto. macOS oculta apps enteras, así que todos los iconos de una app se van juntos. Salir de Vorssaint o desactivar el desplegable los devuelve todos.",
         hideFailed: "No se ha podido cambiar la barra de menús, así que no se oculta nada. Abre Ajustes del Sistema > Barra de menús para comprobar que las apps siguen apareciendo allí.",
+        hideRefused: "macOS no ha dejado que Vorssaint cambie la barra de menús, así que no se oculta nada. Busca en Ajustes del Sistema > Privacidad y seguridad una solicitud de Vorssaint, permítela y vuelve a desactivar la app aquí.",
         alwaysShown: "Siempre visible"
     )
     static let sk = MenuBarManagerStrings(
@@ -202,6 +208,7 @@ extension MenuBarManagerStrings {
         showSection: "Zobraziť v lište",
         showCaption: "Vypnite aplikáciu, aby jej ikony neboli v lište. Zostanú v rozbaľovacej ponuke a keď niektorú otvoríte odtiaľ, aplikácia sa zobrazí, kým je jej ponuka otvorená. macOS skrýva celé aplikácie, takže všetky ikony aplikácie odídu spolu. Ukončenie Vorssaint alebo vypnutie ponuky ich všetky vráti.",
         hideFailed: "Lištu sa nepodarilo zmeniť, takže sa nič neskrylo. Otvorte Systémové nastavenia > Lišta a skontrolujte, či sú tam aplikácie stále uvedené.",
+        hideRefused: "macOS nedovolil aplikácii Vorssaint zmeniť lištu, takže sa nič neskrylo. V Systémových nastaveniach > Súkromie a bezpečnosť nájdite žiadosť od Vorssaint, povoľte ju a potom tu aplikáciu znova vypnite.",
         alwaysShown: "Vždy zobrazené"
     )
     static let de = MenuBarManagerStrings(
@@ -227,6 +234,7 @@ extension MenuBarManagerStrings {
         showSection: "In der Menüleiste zeigen",
         showCaption: "Schalte eine App aus, um ihre Symbole aus der Menüleiste zu nehmen. Sie bleiben im Aufklappmenü, und wenn du eines dort öffnest, wird die App gezeigt, solange ihr Menü offen ist. macOS blendet ganze Apps aus, daher verschwinden alle Symbole einer App gemeinsam. Wenn du Vorssaint beendest oder das Aufklappmenü ausschaltest, kommen alle zurück.",
         hideFailed: "Die Menüleiste konnte nicht geändert werden, daher ist nichts ausgeblendet. Öffne Systemeinstellungen > Menüleiste und prüfe, ob die Apps dort noch aufgeführt sind.",
+        hideRefused: "macOS hat Vorssaint nicht erlaubt, die Menüleiste zu ändern, daher ist nichts ausgeblendet. Suche in Systemeinstellungen > Datenschutz & Sicherheit nach einer Anfrage von Vorssaint, erlaube sie und schalte die App hier erneut aus.",
         alwaysShown: "Immer sichtbar"
     )
     static let fr = MenuBarManagerStrings(
@@ -252,6 +260,7 @@ extension MenuBarManagerStrings {
         showSection: "Afficher dans la barre des menus",
         showCaption: "Désactivez une app pour retirer ses icônes de la barre des menus. Elles restent dans le menu déroulant, et en ouvrir une depuis celui-ci affiche l’app tant que son menu est ouvert. macOS masque des apps entières, toutes les icônes d’une app partent donc ensemble. Quitter Vorssaint ou désactiver le menu déroulant les fait toutes revenir.",
         hideFailed: "Impossible de modifier la barre des menus, rien n’est donc masqué. Ouvrez Réglages Système > Barre des menus pour vérifier que les apps y figurent toujours.",
+        hideRefused: "macOS n’a pas autorisé Vorssaint à modifier la barre des menus, rien n’est donc masqué. Cherchez dans Réglages Système > Confidentialité et sécurité une demande de Vorssaint, autorisez-la, puis désactivez à nouveau l’app ici.",
         alwaysShown: "Toujours affichée"
     )
     static let it = MenuBarManagerStrings(
@@ -277,6 +286,7 @@ extension MenuBarManagerStrings {
         showSection: "Mostra nella barra dei menu",
         showCaption: "Disattiva un’app per togliere le sue icone dalla barra dei menu. Restano nel menu a discesa, e aprirne una da lì mostra l’app finché il suo menu è aperto. macOS nasconde app intere, quindi tutte le icone di un’app spariscono insieme. Uscire da Vorssaint o disattivare il menu a discesa le riporta tutte.",
         hideFailed: "Non è stato possibile modificare la barra dei menu, quindi non è nascosto nulla. Apri Impostazioni di Sistema > Barra dei menu per verificare che le app siano ancora elencate.",
+        hideRefused: "macOS non ha consentito a Vorssaint di modificare la barra dei menu, quindi non è nascosto nulla. Cerca in Impostazioni di Sistema > Privacy e sicurezza una richiesta di Vorssaint, consentila e poi disattiva di nuovo l’app qui.",
         alwaysShown: "Sempre visibile"
     )
     static let ja = MenuBarManagerStrings(
@@ -302,6 +312,7 @@ extension MenuBarManagerStrings {
         showSection: "メニューバーに表示",
         showCaption: "アプリをオフにすると、そのアイコンをメニューバーから外せます。アイコンはドロップダウンに残り、そこから開くと、メニューが開いている間だけアプリが表示されます。macOSはアプリ単位で隠すため、同じアプリのアイコンはまとめて消えます。Vorssaintを終了するか、ドロップダウンをオフにするとすべて戻ります。",
         hideFailed: "メニューバーを変更できなかったため、何も隠れていません。システム設定 > メニューバーを開き、アプリが引き続き表示されているか確認してください。",
+        hideRefused: "macOSがVorssaintによるメニューバーの変更を許可しなかったため、何も隠れていません。システム設定 > プライバシーとセキュリティでVorssaintからの要求を探して許可し、ここでもう一度アプリをオフにしてください。",
         alwaysShown: "常に表示"
     )
     static let ko = MenuBarManagerStrings(
@@ -327,6 +338,7 @@ extension MenuBarManagerStrings {
         showSection: "메뉴 막대에 표시",
         showCaption: "앱을 끄면 해당 앱의 아이콘이 메뉴 막대에서 빠집니다. 아이콘은 드롭다운에 남아 있으며, 거기서 열면 메뉴가 열려 있는 동안만 앱이 표시됩니다. macOS는 앱 단위로 가리므로 한 앱의 아이콘은 함께 사라집니다. Vorssaint를 종료하거나 드롭다운을 끄면 모두 돌아옵니다.",
         hideFailed: "메뉴 막대를 변경할 수 없어 아무것도 가리지 않았습니다. 시스템 설정 > 메뉴 막대를 열어 앱이 아직 목록에 있는지 확인하세요.",
+        hideRefused: "macOS가 Vorssaint의 메뉴 막대 변경을 허용하지 않아 아무것도 가리지 않았습니다. 시스템 설정 > 개인정보 보호 및 보안에서 Vorssaint의 요청을 찾아 허용한 다음, 여기서 앱을 다시 끄세요.",
         alwaysShown: "항상 표시"
     )
     static let uk = MenuBarManagerStrings(
@@ -352,6 +364,7 @@ extension MenuBarManagerStrings {
         showSection: "Показувати у смузі меню",
         showCaption: "Вимкніть програму, щоб прибрати її значки зі смуги меню. Вони лишаться у спадному списку, і якщо відкрити значок звідти, програму буде показано, доки відкрите її меню. macOS приховує програми повністю, тому всі значки програми зникають разом. Вихід із Vorssaint або вимкнення списку повертає їх усі.",
         hideFailed: "Не вдалося змінити смугу меню, тому нічого не приховано. Відкрийте Системні параметри > Смуга меню й перевірте, чи програми досі там є.",
+        hideRefused: "macOS не дозволила Vorssaint змінити смугу меню, тому нічого не приховано. Знайдіть у Системних параметрах > Приватність і безпека запит від Vorssaint, дозвольте його й знову вимкніть програму тут.",
         alwaysShown: "Завжди видимі"
     )
     static let zhHans = MenuBarManagerStrings(
@@ -377,6 +390,7 @@ extension MenuBarManagerStrings {
         showSection: "在菜单栏中显示",
         showCaption: "关闭某个 App，即可让它的图标不出现在菜单栏中。这些图标仍在下拉菜单里，从那里打开时，App 会在其菜单打开期间显示。macOS 按 App 整体隐藏，因此同一 App 的所有图标会一起消失。退出 Vorssaint 或关闭下拉菜单后，它们都会恢复。",
         hideFailed: "无法更改菜单栏，因此没有隐藏任何内容。打开“系统设置”>“菜单栏”，确认这些 App 仍在列表中。",
+        hideRefused: "macOS 未允许 Vorssaint 更改菜单栏，因此没有隐藏任何内容。请在“系统设置”>“隐私与安全性”中找到 Vorssaint 的请求并允许，然后在这里再次关闭该 App。",
         alwaysShown: "始终显示"
     )
     static let zhTW = MenuBarManagerStrings(
@@ -402,6 +416,7 @@ extension MenuBarManagerStrings {
         showSection: "在選單列中顯示",
         showCaption: "關閉某個 App，即可讓它的圖像不出現在選單列中。這些圖像仍在下拉式選單裡，從那裡打開時，App 會在其選單打開期間顯示。macOS 以 App 為單位隱藏，因此同一 App 的所有圖像會一起消失。結束 Vorssaint 或關閉下拉式選單後，它們都會恢復。",
         hideFailed: "無法更改選單列，因此沒有隱藏任何項目。打開「系統設定」>「選單列」，確認這些 App 仍在列表中。",
+        hideRefused: "macOS 未允許 Vorssaint 更改選單列，因此沒有隱藏任何項目。請在「系統設定」>「隱私權與安全性」中找到 Vorssaint 的請求並允許，然後在這裡再次關閉該 App。",
         alwaysShown: "永遠顯示"
     )
     static let zhHK = MenuBarManagerStrings(
@@ -427,6 +442,7 @@ extension MenuBarManagerStrings {
         showSection: "在選單列中顯示",
         showCaption: "關閉某個 App，即可讓它的圖像不出現在選單列中。這些圖像仍在下拉式選單裡，從那裡開啟時，App 會在其選單開啟期間顯示。macOS 以 App 為單位隱藏，因此同一 App 的所有圖像會一起消失。結束 Vorssaint 或關閉下拉式選單後，它們都會恢復。",
         hideFailed: "無法更改選單列，因此沒有隱藏任何項目。開啟「系統設定」>「選單列」，確認這些 App 仍在列表中。",
+        hideRefused: "macOS 未允許 Vorssaint 更改選單列，因此沒有隱藏任何項目。請在「系統設定」>「私隱與安全性」中找到 Vorssaint 的請求並允許，然後在這裡再次關閉該 App。",
         alwaysShown: "永遠顯示"
     )
 }

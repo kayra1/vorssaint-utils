@@ -46,7 +46,12 @@ struct MenuBarManagerSettings: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            if manager.hideFailed {
+            if manager.hideRefused {
+                Label(strings.hideRefused, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if manager.hideFailed {
                 Label(strings.hideFailed, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundStyle(.orange)

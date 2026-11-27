@@ -41,6 +41,8 @@ final class MenuBarManagerService: NSObject, ObservableObject {
     @Published private(set) var isScanning = false
     @Published private(set) var layout = MenuBarCategoryLayout()
     @Published private(set) var hideFailed = false
+    /// macOS took the write without error and left the switch as it was.
+    @Published private(set) var hideRefused = false
 
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
                                     category: "menubar-manager")
@@ -54,6 +56,7 @@ final class MenuBarManagerService: NSObject, ObservableObject {
     private var runningObservation: NSKeyValueObservation?
     private var retryWork: DispatchWorkItem?
     private var retriesLeft = 0
+    private var watchTimer: Timer?
     private let scanQueue = DispatchQueue(label: "com.vorssaint.menu-bar-manager.scan", qos: .userInitiated)
 
     private var defaults: UserDefaults { .standard }
@@ -137,9 +140,12 @@ final class MenuBarManagerService: NSObject, ObservableObject {
         runningObservation = nil
         retryWork?.cancel()
         retryWork = nil
+        watchTimer?.invalidate()
+        watchTimer = nil
         temporarilyShown = [:]
         MenuBarAllowList.releaseAll()
         hideFailed = false
+        hideRefused = false
     }
 
     // MARK: Hiding
@@ -150,13 +156,16 @@ final class MenuBarManagerService: NSObject, ObservableObject {
         guard isRunning, Self.canHideApps else { return }
         let concealed = MenuBarManagerSupport.concealed(
             layout: layout, temporarilyShown: Set(temporarilyShown.keys), ownBundleID: ownBundleID)
+        syncWatch(concealing: !concealed.isEmpty)
         guard !concealed.isEmpty || MenuBarAllowList.hasRecord else {
             hideFailed = false
+            hideRefused = false
             return
         }
         do {
             let untracked = try MenuBarAllowList.apply(concealed: concealed)
             hideFailed = false
+            hideRefused = false
             // An app that never drew an icon has no switch yet; try again a
             // little later in case it draws one.
             let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
@@ -165,10 +174,38 @@ final class MenuBarManagerService: NSObject, ObservableObject {
             } else {
                 scheduleRetry()
             }
+        } catch MenuBarAllowList.Failure.refused {
+            hideFailed = false
+            hideRefused = true
         } catch {
             hideFailed = true
+            hideRefused = false
             Self.log.error("could not hide: \(String(describing: error), privacy: .public)")
         }
+    }
+
+    /// While anything is hidden, checks every few seconds that macOS has not
+    /// put its own list back, and hides again if it has.
+    private func syncWatch(concealing: Bool) {
+        guard concealing else {
+            watchTimer?.invalidate()
+            watchTimer = nil
+            return
+        }
+        guard watchTimer == nil else { return }
+        let timer = Timer(timeInterval: 3, repeats: true) { [weak self] _ in
+            guard let self, self.isRunning else { return }
+            let concealed = MenuBarManagerSupport.concealed(
+                layout: self.layout, temporarilyShown: Set(self.temporarilyShown.keys),
+                ownBundleID: self.ownBundleID)
+            if MenuBarAllowList.needsReapply(concealed: concealed) {
+                Self.log.notice("macOS turned a hidden app back on; hiding it again")
+                self.applyHiding()
+            }
+        }
+        timer.tolerance = 1
+        RunLoop.main.add(timer, forMode: .common)
+        watchTimer = timer
     }
 
     private func scheduleRetry() {

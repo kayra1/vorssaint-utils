@@ -26,6 +26,9 @@ enum MenuBarAllowList {
 
     enum Failure: Error {
         case unavailable, unreadable, notSynchronized
+        /// The write went through without error, yet reading the list back
+        /// shows the switch unchanged: macOS did not take it.
+        case refused
     }
 
     /// macOS 27 or later, with the private calls present. Whether the list
@@ -83,9 +86,26 @@ enum MenuBarAllowList {
             if !on.changed.isEmpty {
                 log.notice("shown again: \(on.changed.sorted().joined(separator: " "), privacy: .public)")
             }
+            // A write can succeed and change nothing, when macOS does not let
+            // this app change Control Center's settings. Only the list read
+            // back says whether it took.
+            let after = MenuBarTrackedApplications.allowedStates(in: try Preferences.read())
+            let stillOn = off.changed.filter { after[$0] != false }
+            if !stillOn.isEmpty {
+                log.error("macOS kept these on: \(stillOn.sorted().joined(separator: " "), privacy: .public)")
+                throw Failure.refused
+            }
         }
         recorded = plan.recorded
         return plan.untracked
+    }
+
+    /// Whether macOS has turned back on a switch that should be off: it can
+    /// put its own list back right after a change (seen by Thaw on macOS 27).
+    static func needsReapply(concealed: Set<String>) -> Bool {
+        guard !concealed.isEmpty, let array = try? Preferences.read() else { return false }
+        let states = MenuBarTrackedApplications.allowedStates(in: array)
+        return concealed.contains { states[switchIdentifier(for: $0, states: states)] == true }
     }
 
     /// Turns back on every switch this app turned off, in this run or an
